@@ -1,0 +1,62 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            Int             @id @default(autoincrement())
+  username      String          @unique
+  email         String          @unique
+  passwordHash  String
+  coins         Int             @default(50)
+  createdAt     DateTime        @default(now())
+  pet           Pet?
+  sessions      StudySession[]
+  inventory     UserInventory[]
+}
+
+model Pet {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  type        String   //'cat', 'dog', 'rabbit'
+  hungerLevel Int      @default(100) //0-100 arasi
+  xp          Int      @default(0)
+  level       Int      @default(1)
+}
+
+model StudySession {
+  id              Int      @id @default(autoincrement())
+  userId          Int
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category        String   //'Web Programlama', 'Matematik' vb.
+  durationMinutes Int
+  isCompleted     Boolean  @default(false)
+  status          String   @default("in_progress") //'in_progress', 'completed', 'abandoned'
+  createdAt       DateTime @default(now())
+}
+
+model ShopItem {
+  id          Int             @id @default(autoincrement())
+  name        String
+  type        String          //'food', 'accessory', 'decor'
+  price       Int
+  effectValue Int             //yiyecekse acligi artirma degeri
+  spriteUrl   String
+  inventories UserInventory[]
+}
+
+model UserInventory {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  itemId     Int
+  quantity   Int      @default(1)
+  isEquipped Boolean  @default(false)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  item       ShopItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+}
