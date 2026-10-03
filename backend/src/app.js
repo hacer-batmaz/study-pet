@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import authRoutes from './routes/authRoutes.js';
 import sessionRoutes from './routes/sessionRoutes.js';
+import petRoutes from './routes/petRoutes.js';
+import shopRoutes from './routes/shopRoutes.js';
 
 const app = express();
 
@@ -10,6 +12,8 @@ app.use(express.json());
 
 app.use('/api/auth', authRoutes);
 app.use('/api/sessions', sessionRoutes);
+app.use('/api/pets', petRoutes);
+app.use('/api/shop', shopRoutes);
 
 //test kontrol
 app.get('/api/health', (req, res) => {
