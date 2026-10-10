@@ -19,9 +19,9 @@ export const startSession = async (req, res) => {
     });
 
     if (activeSession) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Zaten devam eden bir çalışma seansınız var.',
-        session: activeSession 
+        session: activeSession
       });
     }
 
@@ -128,50 +128,77 @@ export const completeSession = async (req, res) => {
 //pes etme- iptal
 export const abandonSession = async (req, res) => {
   try {
-    const { sessionId } = req.body;
     const userId = req.user.userId;
+    const { sessionId } = req.body;
 
-    const session = await prisma.studySession.findFirst({
-      where: {
-        id: parseInt(sessionId),
-        userId,
-        status: 'in_progress'
-      }
-    });
-
-    if (!session) {
-      return res.status(404).json({ error: 'İptal edilecek aktif bir seans bulunamadı.' });
+    // 1. Kullanıcının hayvanını bul
+    const pet = await prisma.pet.findFirst({ where: { userId } });
+    if (!pet) {
+      return res.status(404).json({ error: 'Sanal hayvan bulunamadı.' });
     }
 
-    const pet = await prisma.pet.findUnique({
-      where: { userId }
-    });
-
-    //aclik puanini 15 dusurur - 0in altina inmez
-    const newHunger = Math.max(0, (pet ? pet.hungerLevel : 100) - 15);
-
-    await prisma.$transaction([
-      prisma.studySession.update({
-        where: { id: session.id },
-        data: {
-          status: 'abandoned',
-          isCompleted: false
+    // 2. Seansı bul (Varsa id'ye göre, yoksa kullanıcının en son tamamlanmamış seansına göre)
+    let session = null;
+    if (sessionId) {
+      session = await prisma.studySession.findFirst({
+        where: {
+          id: parseInt(sessionId, 10),
+          userId
         }
-      }),
-      prisma.pet.update({
-        where: { userId },
-        data: {
-          hungerLevel: newHunger
-        }
-      })
-    ]);
+      });
+    }
+
+    if (!session) {
+      session = await prisma.studySession.findFirst({
+        where: {
+          userId,
+          status: 'IN_PROGRESS'
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+    }
+
+    // Seans süresini al (Yoksa varsayılan 25 dk)
+    const sessionMins = session?.durationMinutes || session?.duration || 25;
+
+    // Süreye göre dinamik ceza puanı (10 taban + her 5 dk için +1, maks 40)
+    const penaltyAmount = Math.min(40, 10 + Math.floor(sessionMins / 5));
+
+    // Açlığı 0'ın altına düşmeyecek şekilde hesapla
+    const updatedHunger = Math.max(0, pet.hungerLevel - penaltyAmount);
+
+    // 3. Veritabanı Güncellemesi: Hayvanın açlığını düşür, seansın durumunu güncelle
+    let updatedPet;
+    if (session) {
+      const [p] = await prisma.$transaction([
+        prisma.pet.update({
+          where: { id: pet.id },
+          data: { hungerLevel: updatedHunger }
+        }),
+        prisma.studySession.update({
+          where: { id: session.id },
+          data: {
+            status: 'ABANDONED',
+            isCompleted: false
+            // endedAt alanı şemada olmadığı için kaldırıldı
+          }
+        })
+      ]);
+      updatedPet = p;
+    } else {
+      updatedPet = await prisma.pet.update({
+        where: { id: pet.id },
+        data: { hungerLevel: updatedHunger }
+      });
+    }
 
     return res.status(200).json({
-      message: 'Seans iptal edildi. Hayvanınız açlık puanı kaybetti!',
-      hungerLevel: newHunger
+      message: 'Seans iptal edildi.',
+      penaltyAmount,
+      pet: updatedPet
     });
   } catch (error) {
-    console.error('Seans iptal hatası:', error);
-    return res.status(500).json({ error: 'Sunucu hatası oluştu.' });
+    console.error('Abandon hatası:', error);
+    return res.status(500).json({ error: 'Seans iptal edilirken sunucu hatası oluştu.' });
   }
 };

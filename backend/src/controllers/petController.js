@@ -52,17 +52,23 @@ export const feedPet = async (req, res) => {
             return res.status(400).json({ error: 'Bu eşya ile hayvan beslenemez.' });
         }
 
-        const pet = await prisma.pet.findUnique({ where: { userId } });
+        //findFirst ile kullanicinin hayvanini bul
+        const pet = await prisma.pet.findFirst({ where: { userId } });
+
+        if (!pet) {
+            return res.status(404).json({ error: 'Sanal hayvan bulunamadı.' });
+        }
 
         if (pet.hungerLevel >= 100) {
             return res.status(400).json({ error: 'Hayvan zaten tamamen tok (100/100).' });
         }
 
-        //acliği max 100 olacak sekilde artir
-        const newHunger = Math.min(100, pet.hungerLevel + inventoryItem.item.effectValue);
+        //acligi max 100 olacak sekilde artir (effectValue veya hungerRestore)
+        const effectVal = inventoryItem.item.effectValue || inventoryItem.item.hungerRestore || 20;
+        const newHunger = Math.min(100, pet.hungerLevel + effectVal);
 
-        //envanter miktarini 1 azalt - 0 olursa kaydi sil ve acligi guncelle
-        await prisma.$transaction(async (tx) => {
+        //transaction ile envanteri dus ve hayvani guncelle
+        const updatedPet = await prisma.$transaction(async (tx) => {
             if (inventoryItem.quantity > 1) {
                 await tx.userInventory.update({
                     where: { id: inventoryItem.id },
@@ -74,19 +80,20 @@ export const feedPet = async (req, res) => {
                 });
             }
 
-            await tx.pet.update({
-                where: { userId },
+            return await tx.pet.update({
+                where: { id: pet.id },
                 data: { hungerLevel: newHunger }
             });
         });
 
+        //hem frontend state guncellemesini (pet.hungerLevel) hem de bilgilendirici alanları donuyoruz
         return res.status(200).json({
-            message: `${pet.name} başarıyla beslendi. Açlık seviyesi: ${newHunger}/100`,
-            newHungerLevel: newHunger,
+            message: `${updatedPet.name} başarıyla beslendi!`,
+            pet: updatedPet,
             fedWith: inventoryItem.item.name
         });
     } catch (error) {
         console.error('Hayvan beslenirken hata oluştu:', error);
-        return res.status(500).json({ error: 'Sunucu hatası.' });
+        return res.status(500).json({ error: 'Sunucu hatası oluştu.' });
     }
-}
+};

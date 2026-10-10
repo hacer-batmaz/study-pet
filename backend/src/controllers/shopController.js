@@ -81,3 +81,25 @@ export const buyItem = async (req, res) => {
         return res.status(500).json({ error: 'Sunucu hatası oluştu.' });
     }
 };
+
+//kullanicinin envanterini listeler
+export const getUserInventory = async (req, res) => {
+    try {
+        const userId = req.user.userId;
+
+        const inventory = await prisma.userInventory.findMany({
+            where: {
+                userId: userId,
+                quantity: { gt: 0 }
+            },
+            include: {
+                item: true
+            }
+        });
+
+        return res.status(200).json({ inventory });
+    } catch (error) {
+        console.error('Envanter alınırken hata oluştu:', error);
+        return res.status(500).json({ error: 'Sunucu hatası oluştu.' });
+    }
+};
