@@ -52,9 +52,11 @@ export default function ShopModal({ isOpen, onClose }) {
         try {
             const res = await api.post('/shop/buy', { itemId: item.id });
 
-            updateUserState({
-                coins: res.data.coins
-            });
+            // Backend'in döndürdüğü alan adı: remainingCoins
+            const remainingCoins = res.data?.remainingCoins;
+            if (typeof remainingCoins === 'number') {
+                updateUserState({ coins: remainingCoins });
+            }
 
             setMessage({
                 type: 'success',
@@ -104,11 +106,10 @@ export default function ShopModal({ isOpen, onClose }) {
 
                 {message && (
                     <div
-                        className={`p-3.5 rounded-xl text-xs font-semibold mb-5 flex items-center gap-2.5 animate-fadeIn shrink-0 ${
-                            message.type === 'success'
+                        className={`p-3.5 rounded-xl text-xs font-semibold mb-5 flex items-center gap-2.5 animate-fadeIn shrink-0 ${message.type === 'success'
                                 ? 'bg-emerald-950/70 text-emerald-300'
                                 : 'bg-red-950/70 text-red-300'
-                        }`}
+                            }`}
                     >
                         {message.type === 'success' ? (
                             <Check size={16} className="shrink-0" />
@@ -141,13 +142,12 @@ export default function ShopModal({ isOpen, onClose }) {
                                         <div className="flex flex-col gap-1 min-w-0">
                                             <div className="flex items-center gap-2">
                                                 <h4 className="text-sm font-bold text-white truncate">{item.name}</h4>
-                                                <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-md border ${
-                                                    item.type === 'food'
+                                                <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-md border ${item.type === 'food'
                                                         ? 'bg-orange-950/60 border-orange-700/40 text-orange-300'
                                                         : item.type === 'accessory'
-                                                        ? 'bg-purple-950/60 border-purple-700/40 text-purple-300'
-                                                        : 'bg-emerald-950/60 border-emerald-700/40 text-emerald-300'
-                                                }`}>
+                                                            ? 'bg-purple-950/60 border-purple-700/40 text-purple-300'
+                                                            : 'bg-emerald-950/60 border-emerald-700/40 text-emerald-300'
+                                                    }`}>
                                                     {item.type === 'food' ? 'Yiyecek' : item.type === 'accessory' ? 'Aksesuar' : 'Dekor'}
                                                 </span>
                                             </div>
@@ -155,8 +155,8 @@ export default function ShopModal({ isOpen, onClose }) {
                                                 {item.type === 'food'
                                                     ? `+${item.effectValue} Açlık Doldurur`
                                                     : item.type === 'accessory'
-                                                    ? 'Evcil hayvan aksesuarı'
-                                                    : 'Çalışma odası dekorasyonu'}
+                                                        ? 'Evcil hayvan aksesuarı'
+                                                        : 'Çalışma odası dekorasyonu'}
                                             </p>
                                         </div>
                                     </div>
@@ -171,11 +171,10 @@ export default function ShopModal({ isOpen, onClose }) {
                                             type="button"
                                             disabled={!canAfford || isBuying}
                                             onClick={() => handleBuy(item)}
-                                            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md ${
-                                                canAfford
+                                            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md ${canAfford
                                                     ? 'bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-400 hover:to-amber-500 text-slate-950 cursor-pointer active:scale-95'
                                                     : 'bg-gray-800 text-gray-500 cursor-not-allowed'
-                                            }`}
+                                                }`}
                                         >
                                             {isBuying ? 'Alınıyor...' : 'Satın Al'}
                                         </button>

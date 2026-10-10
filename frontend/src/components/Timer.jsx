@@ -8,7 +8,7 @@ import { Play, Square, Sparkles, BookOpen, Clock, Plus, Trash2, X } from 'lucide
 const PRESETS = [15, 25, 45, 60];
 
 // Web Audio API ile retro tamamlama melodisi (yaklaşık 1-1.5 saniye)
-const playCompletionSound = () => { ///////////
+const playCompletionSound = () => { 
   try {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     if (!AudioContext) return;
@@ -76,7 +76,42 @@ export default function Timer({ onSessionFinished }) {
   const [completionMessage, setCompletionMessage] = useState(null);
 
   const timerRef = useRef(null);
+  const endsAtRef = useRef(null); // Seansın biteceği an (ms). Sayaç buradan hesaplanır, saniye sayarak değil.
+  const completingRef = useRef(false); // Aynı seansın iki kez tamamlanmasını engeller
 
+  // Sayfa yenilendiğinde (F5) backend'deki aktif seansı kontrol edip geri yükler
+  useEffect(() => {
+    const checkActiveSession = async () => {
+      try {
+        const res = await api.get('/sessions/active');
+        console.log('Aktif Seans Kontrolü:', res.data);
+        const session = res.data?.activeSession;
+
+        if (session) {
+          setSessionId(session.id);
+          if (session.category) {
+            setCategory(session.category);
+          }
+          if (session.durationMinutes) {
+            setSelectedDuration(session.durationMinutes);
+            setCustomInput(session.durationMinutes.toString());
+          }
+
+          // Kalan süre sunucudan geliyor. Bitiş anını buna göre kuruyoruz.
+          // Süre 0 ise de isRunning=true yapıyoruz; aşağıdaki effect seansı otomatik tamamlar.
+          const remaining = Math.max(0, session.remainingSeconds ?? 0);
+          endsAtRef.current = Date.now() + remaining * 1000;
+          setTimeLeft(remaining);
+          setIsRunning(true);
+        }
+      } catch (err) {
+        console.error('Aktif seans kontrol edilirken hata:', err.response?.data || err.message);
+      }
+    };
+
+    checkActiveSession();
+  }, []);
+  
   useEffect(() => {
     localStorage.setItem('studypet_user_categories', JSON.stringify(categories));
   }, [categories]);
@@ -132,19 +167,38 @@ export default function Timer({ onSessionFinished }) {
     }
   };
 
-  // Zamanlayıcı Döngüsü
+  // Zamanlayıcı döngüsü: her tikte kalan süreyi bitiş anından hesaplar (arka planda kaymaz)
   useEffect(() => {
-    if (isRunning && !isAbandonModalOpen && timeLeft > 0) {
-      timerRef.current = setInterval(() => {
-        setTimeLeft((prev) => prev - 1);
-      }, 1000);
-    } else if (timeLeft === 0 && isRunning) {
+    if (!isRunning) return;
+
+    const tick = () => {
+      if (endsAtRef.current === null) return;
+      const left = Math.max(0, Math.round((endsAtRef.current - Date.now()) / 1000));
+      setTimeLeft(left);
+    };
+
+    tick();
+    timerRef.current = setInterval(tick, 1000);
+
+    // Sekmeye geri dönünce beklemeden güncelle
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') tick();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
       clearInterval(timerRef.current);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [isRunning]);
+
+  // Süre 0'a ulaşınca seansı tamamla (hem normal akış hem sayfa yenileme sonrası için)
+  useEffect(() => {
+    if (isRunning && timeLeft === 0 && !completingRef.current) {
+      setIsAbandonModalOpen(false);
       handleCompleteSession();
     }
-
-    return () => clearInterval(timerRef.current);
-  }, [isRunning, isAbandonModalOpen, timeLeft]);
+  }, [isRunning, timeLeft]);
 
   const handleStartSession = async () => {
     if (selectedDuration < 1) {
@@ -162,6 +216,9 @@ export default function Timer({ onSessionFinished }) {
 
       const createdId = res.data?.session?.id || res.data?.session?._id || res.data?.id;
       setSessionId(createdId);
+      completingRef.current = false;
+      endsAtRef.current = Date.now() + selectedDuration * 60 * 1000;
+      setTimeLeft(selectedDuration * 60);
       setIsRunning(true);
     } catch (err) {
       alert(err.response?.data?.error || 'Seans başlatılamadı.');
@@ -171,6 +228,8 @@ export default function Timer({ onSessionFinished }) {
   };
 
   const handleCompleteSession = async () => {
+    if (completingRef.current) return;
+    completingRef.current = true;
     playCompletionSound();
     setLoading(true);
 
@@ -179,6 +238,7 @@ export default function Timer({ onSessionFinished }) {
       const res = await api.post('/sessions/complete', { sessionId });
       console.log('Seans Tamamlama Yanıtı:', res.data);
 
+      endsAtRef.current = null;
       setIsRunning(false);
       setSessionId(null);
       setTimeLeft(selectedDuration * 60);
@@ -201,12 +261,14 @@ export default function Timer({ onSessionFinished }) {
 
       // Ödülleri rewards nesnesinden veya doğrudan ana nesneden oku
       const earnedCoinsAmount =
+        res.data?.rewards?.coinsEarned ??
         res.data?.rewards?.coins ??
         res.data?.rewards?.earnedCoins ??
         res.data?.earnedCoins ??
         0;
 
       const earnedXpAmount =
+        res.data?.rewards?.xpEarned ??
         res.data?.rewards?.xp ??
         res.data?.rewards?.earnedXp ??
         res.data?.earnedXp ??
@@ -216,12 +278,15 @@ export default function Timer({ onSessionFinished }) {
       setCompletionMessage({
         earnedCoins: earnedCoinsAmount,
         earnedXp: earnedXpAmount,
-        levelUp: Boolean(res.data?.rewards?.levelUp || petData.levelUp)
+        levelUp: Boolean(res.data?.rewards?.leveledUp || res.data?.rewards?.levelUp || petData.levelUp)
       });
 
       if (onSessionFinished) onSessionFinished();
     } catch (err) {
       console.error('Seans Tamamlama Hatası Detayı:', err.response?.data || err.message);
+      completingRef.current = false;
+      endsAtRef.current = null;
+      setIsRunning(false);
       alert(err.response?.data?.error || err.response?.data?.message || 'Seans tamamlanırken hata oluştu.');
     } finally {
       setLoading(false);
@@ -229,7 +294,7 @@ export default function Timer({ onSessionFinished }) {
   };
 
   const handleOpenAbandonModal = () => {
-    clearInterval(timerRef.current);
+    // Sayaç durdurulmaz: sunucu tarafında süre akmaya devam ediyor
     setIsAbandonModalOpen(true);
   };
 
@@ -245,7 +310,7 @@ export default function Timer({ onSessionFinished }) {
         sessionId: sessionId ? Number(sessionId) : null
       });
 
-      clearInterval(timerRef.current);
+      endsAtRef.current = null;
       setIsRunning(false);
       setSessionId(null);
       setTimeLeft(selectedDuration * 60);
@@ -276,7 +341,7 @@ export default function Timer({ onSessionFinished }) {
     } catch (err) {
       console.error('Abandon Hatası Detayı:', err.response?.data || err.message);
       // Hata durumunda da sayacı durdurup kullanıcıyı kilitlememek için:
-      clearInterval(timerRef.current);
+      endsAtRef.current = null;
       setIsRunning(false);
       setIsAbandonModalOpen(false);
       alert(err.response?.data?.error || err.response?.data?.message || 'Seans iptal edilemedi.');

@@ -41,10 +41,18 @@ export const buyItem = async (req, res) => {
 
         //bakiye dusme ve envantere ekleme islemi
         const result = await prisma.$transaction(async (tx) => {
-            //coin dusme
-            const updatedUser = await tx.user.update({
-                where: { id: userId },
+            //coin dusme (bakiye yeterliyse; kontrol ve dusme tek islemde)
+            const { count } = await tx.user.updateMany({
+                where: { id: userId, coins: { gte: item.price } },
                 data: { coins: { decrement: item.price } }
+            });
+
+            if (count === 0) {
+                throw new Error('insufficient_coins');
+            }
+            
+            const updatedUser = await tx.user.findUnique({
+                where: { id: userId }
             });
 
             //envanterde var mi kontrol
@@ -77,6 +85,9 @@ export const buyItem = async (req, res) => {
             inventory: result.inventory
         });
     } catch (error) {
+        if (error.message === 'insufficient_coins') {
+            return res.status(400).json({ error: 'Yetersiz bakiye!' });
+        }
         console.error('Satın alma hatası:', error);
         return res.status(500).json({ error: 'Sunucu hatası oluştu.' });
     }

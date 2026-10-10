@@ -152,7 +152,7 @@ export const abandonSession = async (req, res) => {
       session = await prisma.studySession.findFirst({
         where: {
           userId,
-          status: 'IN_PROGRESS'
+          status: 'in_progress'
         },
         orderBy: { createdAt: 'desc' }
       });
@@ -178,7 +178,7 @@ export const abandonSession = async (req, res) => {
         prisma.studySession.update({
           where: { id: session.id },
           data: {
-            status: 'ABANDONED',
+            status: 'abandoned',
             isCompleted: false
             // endedAt alanı şemada olmadığı için kaldırıldı
           }
@@ -200,5 +200,46 @@ export const abandonSession = async (req, res) => {
   } catch (error) {
     console.error('Abandon hatası:', error);
     return res.status(500).json({ error: 'Seans iptal edilirken sunucu hatası oluştu.' });
+  }
+};
+
+//kullanicinin varsa aktif seansini ve kalan suresini getirir
+export const getActiveSession = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    // Kullanıcının devam eden seansını bul
+    const activeSession = await prisma.studySession.findFirst({
+      where: {
+        userId,
+        status: 'in_progress'
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    if (!activeSession) {
+      return res.status(200).json({ activeSession: null });
+    }
+
+    // Geçen ve kalan süreyi hesapla
+    const now = new Date();
+    const startTime = new Date(activeSession.createdAt);
+    const elapsedSeconds = Math.floor((now - startTime) / 1000);
+    const totalMinutes = activeSession.durationMinutes || activeSession.duration || 25;
+    const totalSeconds = totalMinutes * 60;
+    const remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
+
+    return res.status(200).json({
+      activeSession: {
+        id: activeSession.id,
+        category: activeSession.category,
+        durationMinutes: totalMinutes,
+        remainingSeconds,
+        isExpired: remainingSeconds === 0
+      }
+    });
+  } catch (error) {
+    console.error('Aktif seans sorgulama hatası:', error);
+    return res.status(500).json({ error: 'Aktif seans kontrol edilirken sunucu hatası oluştu.' });
   }
 };
