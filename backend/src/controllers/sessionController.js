@@ -243,3 +243,84 @@ export const getActiveSession = async (req, res) => {
     return res.status(500).json({ error: 'Aktif seans kontrol edilirken sunucu hatası oluştu.' });
   }
 };
+
+//kullanicinin calisma istatistiklerini hesaplar ve doner
+export const getUserStats = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    //tum seansları ceker
+    const sessions = await prisma.studySession.findMany({
+      where: {
+        userId,
+        status: { in: ['completed', 'abandoned'] }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    const totalSessions = sessions.length;
+    const completedSessions = sessions.filter((s) => s.status === 'completed');
+    const abandonedSessions = sessions.filter((s) => s.status === 'abandoned');
+
+    //sadece tamamlanan seansların suresi toplam calisma suresine eklenir
+    const totalMinutesStudied = completedSessions.reduce(
+      (acc, s) => acc + (s.durationMinutes || 0),
+      0
+    );
+
+    //basari orani hesaplama (%)
+    const completionRate =
+      totalSessions > 0
+        ? Math.round((completedSessions.length / totalSessions) * 100)
+        : 0;
+
+    //kategori bazli sure
+    const categoryBreakdown = {};
+    completedSessions.forEach((s) => {
+      const cat = s.category || 'Genel Çalışma';
+      categoryBreakdown[cat] = (categoryBreakdown[cat] || 0) + (s.durationMinutes || 0);
+    });
+
+    //grafik cizimini kolaylastirmak icin kategori bazli sureyi ve yuzdeyi doner
+    const categoryStats = Object.entries(categoryBreakdown).map(([name, minutes]) => ({
+      name,
+      minutes,
+      percentage: totalMinutesStudied > 0 ? Math.round((minutes / totalMinutesStudied) * 100) : 0
+    }));
+
+    return res.status(200).json({
+      totalMinutesStudied,
+      totalHours: Number((totalMinutesStudied / 60).toFixed(1)),
+      totalSessionsCount: totalSessions,
+      completedCount: completedSessions.length,
+      abandonedCount: abandonedSessions.length,
+      completionRate,
+      categoryStats
+    });
+  } catch (error) {
+    console.error('İstatistik getirme hatası:', error);
+    return res.status(500).json({ error: 'İstatistikler hesaplanırken sunucu hatası oluştu.' });
+  }
+};
+
+//kullanicinin gecmis calisma seanslari listesini doner
+export const getSessionHistory = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const limit = parseInt(req.query.limit, 10) || 20;
+
+    const history = await prisma.studySession.findMany({
+      where: {
+        userId,
+        status: { in: ['completed', 'abandoned'] }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit
+    });
+
+    return res.status(200).json({ history });
+  } catch (error) {
+    console.error('Seans geçmişi getirme hatası:', error);
+    return res.status(500).json({ error: 'Geçmiş seanslar yüklenirken sunucu hatası oluştu.' });
+  }
+};
