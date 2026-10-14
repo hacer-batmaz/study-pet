@@ -248,13 +248,36 @@ export const getActiveSession = async (req, res) => {
 export const getUserStats = async (req, res) => {
   try {
     const userId = req.user.userId;
+    const { timeRange, startDate, endDate, category } = req.query;
 
-    //tum seansları ceker
+    // Prisma sorgu filtresi oluşturma
+    const whereClause = {
+      userId,
+      status: { in: ['completed', 'abandoned'] }
+    };
+
+    // 1. Kategori Filtresi
+    if (category && category !== 'all') {
+      whereClause.category = category;
+    }
+
+    // 2. Tarih Filtresi
+    const now = new Date();
+    if (timeRange === 'today') {
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+      const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+      whereClause.createdAt = { gte: startOfDay, lte: endOfDay };
+    } else if (timeRange === 'week') {
+      const past7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      whereClause.createdAt = { gte: past7Days };
+    } else if (timeRange === 'custom' && (startDate || endDate)) {
+      whereClause.createdAt = {};
+      if (startDate) whereClause.createdAt.gte = new Date(`${startDate}T00:00:00`);
+      if (endDate) whereClause.createdAt.lte = new Date(`${endDate}T23:59:59`);
+    }
+
     const sessions = await prisma.studySession.findMany({
-      where: {
-        userId,
-        status: { in: ['completed', 'abandoned'] }
-      },
+      where: whereClause,
       orderBy: { createdAt: 'desc' }
     });
 
@@ -262,26 +285,24 @@ export const getUserStats = async (req, res) => {
     const completedSessions = sessions.filter((s) => s.status === 'completed');
     const abandonedSessions = sessions.filter((s) => s.status === 'abandoned');
 
-    //sadece tamamlanan seansların suresi toplam calisma suresine eklenir
+    // Sadece tamamlanan seansların süresi eklenir
     const totalMinutesStudied = completedSessions.reduce(
       (acc, s) => acc + (s.durationMinutes || 0),
       0
     );
 
-    //basari orani hesaplama (%)
     const completionRate =
       totalSessions > 0
         ? Math.round((completedSessions.length / totalSessions) * 100)
         : 0;
 
-    //kategori bazli sure
+    // Kategori bazlı süre dağılımı
     const categoryBreakdown = {};
     completedSessions.forEach((s) => {
       const cat = s.category || 'Genel Çalışma';
       categoryBreakdown[cat] = (categoryBreakdown[cat] || 0) + (s.durationMinutes || 0);
     });
 
-    //grafik cizimini kolaylastirmak icin kategori bazli sureyi ve yuzdeyi doner
     const categoryStats = Object.entries(categoryBreakdown).map(([name, minutes]) => ({
       name,
       minutes,

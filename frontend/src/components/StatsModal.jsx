@@ -7,8 +7,9 @@ import {
   CheckCircle2, 
   XCircle, 
   PieChart, 
-  History, 
-  Award 
+  Award,
+  Filter,
+  Calendar
 } from 'lucide-react';
 
 export default function StatsModal({ isOpen, onClose }) {
@@ -17,21 +18,43 @@ export default function StatsModal({ isOpen, onClose }) {
   const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'history'
   const [loading, setLoading] = useState(false);
 
+  // Filtre State'leri (Varsayılan: 'today' yani Bugünün Analizi)
+  const [timeRange, setTimeRange] = useState('today'); // 'today' | 'week' | 'all' | 'custom'
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [availableCategories, setAvailableCategories] = useState([]);
+
   useEffect(() => {
     if (isOpen) {
-      fetchData();
+      // Kaydedilmiş kategorileri localStorage'dan oku
+      try {
+        const saved = localStorage.getItem('studypet_user_categories');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) setAvailableCategories(parsed);
+        }
+      } catch (e) {
+        console.warn('Kategoriler okunamadı:', e);
+      }
+      fetchStats();
+      fetchHistory();
     }
-  }, [isOpen]);
+  }, [isOpen, timeRange, selectedCategory, startDate, endDate]);
 
-  const fetchData = async () => {
+  const fetchStats = async () => {
     setLoading(true);
     try {
-      const [statsRes, historyRes] = await Promise.all([
-        api.get('/sessions/stats'),
-        api.get('/sessions/history?limit=15')
-      ]);
-      setStats(statsRes.data);
-      setHistory(historyRes.data?.history || []);
+      const params = new URLSearchParams();
+      params.append('timeRange', timeRange);
+      if (selectedCategory !== 'all') params.append('category', selectedCategory);
+      if (timeRange === 'custom') {
+        if (startDate) params.append('startDate', startDate);
+        if (endDate) params.append('endDate', endDate);
+      }
+
+      const res = await api.get(`/sessions/stats?${params.toString()}`);
+      setStats(res.data);
     } catch (err) {
       console.error('İstatistikler yüklenirken hata:', err.response?.data || err.message);
     } finally {
@@ -39,11 +62,20 @@ export default function StatsModal({ isOpen, onClose }) {
     }
   };
 
+  const fetchHistory = async () => {
+    try {
+      const res = await api.get('/sessions/history?limit=20');
+      setHistory(res.data?.history || []);
+    } catch (err) {
+      console.error('Geçmiş yüklenirken hata:', err.response?.data || err.message);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-retro-card border-2 border-purple-500/40 p-6 md:p-8 rounded-3xl max-w-2xl w-full shadow-2xl relative flex flex-col max-h-[85vh]">
+      <div className="bg-retro-card border-2 border-purple-500/40 p-6 md:p-8 rounded-3xl max-w-2xl w-full shadow-2xl relative flex flex-col max-h-[90vh]">
         
         {/* Kapat Butonu */}
         <button
@@ -55,14 +87,14 @@ export default function StatsModal({ isOpen, onClose }) {
         </button>
 
         {/* Üst Başlık & Sekmeler */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-purple-900/40 pb-5 mb-5 pr-10 gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-purple-900/40 pb-5 mb-4 pr-10 gap-3">
           <div className="flex items-center gap-3">
             <div className="p-3 bg-purple-950/60 text-retro-purple rounded-2xl flex items-center justify-center shrink-0">
               <BarChart2 size={24} />
             </div>
             <div>
               <h3 className="text-xl font-bold text-white tracking-wide">Çalışma İstatistikleri</h3>
-              <p className="text-xs text-gray-400">Odaklanma geçmişin ve ders analizlerin</p>
+              <p className="text-xs text-gray-400">Günün analizi ve çalışma performansın</p>
             </div>
           </div>
 
@@ -91,23 +123,93 @@ export default function StatsModal({ isOpen, onClose }) {
           </div>
         </div>
 
+        {/* ================= FİLTRE ÇUBUĞU ================= */}
+        {activeTab === 'overview' && (
+          <div className="bg-retro-dark/80 border border-purple-900/40 p-3 rounded-2xl mb-4 space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              {/* Zaman Seçimi Butonları */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {[
+                  { id: 'today', label: 'Bugün' },
+                  { id: 'week', label: 'Son 7 Gün' },
+                  { id: 'all', label: 'Tümü' },
+                  { id: 'custom', label: 'Özel Tarih' },
+                ].map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => setTimeRange(t.id)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+                      timeRange === t.id
+                        ? 'bg-retro-purple text-white'
+                        : 'bg-retro-card/60 text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Kategori Seçim Dropdown */}
+              <div className="flex items-center gap-1.5">
+                <Filter size={14} className="text-retro-accent" />
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="bg-retro-card border border-purple-900/50 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-retro-purple"
+                >
+                  <option value="all">Tüm Kategoriler</option>
+                  {availableCategories.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Özel Tarih Seçildiğinde Açılan Tarih Inputları */}
+            {timeRange === 'custom' && (
+              <div className="flex items-center gap-2 pt-2 border-t border-purple-900/30 text-xs text-gray-300">
+                <Calendar size={14} className="text-purple-400 shrink-0" />
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="bg-retro-card border border-purple-900/40 rounded-lg px-2 py-1 text-white text-xs focus:outline-none"
+                />
+                <span>-</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="bg-retro-card border border-purple-900/40 rounded-lg px-2 py-1 text-white text-xs focus:outline-none"
+                />
+              </div>
+            )}
+          </div>
+        )}
+
         {/* İçerik Alanı */}
         <div className="overflow-y-auto space-y-4 pr-1 flex-1">
           {loading ? (
             <div className="text-center py-16 text-gray-400 text-sm font-medium">
-              Veriler yükleniyor...
+              Analiz hesaplanıyor...
             </div>
           ) : activeTab === 'overview' ? (
-            /* ================= GENEL BAKIŞ SEKMESİ ================= */
-            <div className="space-y-5">
+            /* ================= GENEL BAKIŞ ================= */
+            <div className="space-y-4">
               {/* Özet Metrik Kartları */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="bg-retro-dark/80 border border-purple-900/40 p-3.5 rounded-2xl flex flex-col items-center text-center">
                   <Clock size={20} className="text-purple-400 mb-1" />
                   <span className="text-xl font-black font-mono text-white">
-                    {stats?.totalHours || 0}s
+                    {stats?.totalMinutesStudied >= 60 
+                      ? `${stats.totalHours}s` 
+                      : `${stats?.totalMinutesStudied || 0} dk`}
                   </span>
-                  <span className="text-[11px] text-gray-400 font-medium">Toplam Süre</span>
+                  <span className="text-[11px] text-gray-400 font-medium">
+                    {timeRange === 'today' ? 'Bugünkü Süre' : 'Toplam Süre'}
+                  </span>
                 </div>
 
                 <div className="bg-retro-dark/80 border border-purple-900/40 p-3.5 rounded-2xl flex flex-col items-center text-center">
@@ -139,7 +241,9 @@ export default function StatsModal({ isOpen, onClose }) {
               <div className="bg-retro-dark/60 border border-purple-900/40 p-5 rounded-2xl">
                 <div className="flex items-center gap-2 mb-4">
                   <PieChart size={18} className="text-retro-accent" />
-                  <h4 className="text-sm font-bold text-white">Ders / Kategori Dağılımı</h4>
+                  <h4 className="text-sm font-bold text-white">
+                    {timeRange === 'today' ? 'Günün Ders Dağılımı' : 'Ders Dağılımı'}
+                  </h4>
                 </div>
 
                 {(!stats?.categoryStats || stats.categoryStats.length === 0) ? (
