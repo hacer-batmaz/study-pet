@@ -4,6 +4,7 @@ import {
   Clock, 
   ShoppingBag, 
   BarChart2, 
+  Settings,
   LogOut, 
   Coins, 
   Heart, 
@@ -13,11 +14,13 @@ import {
 } from 'lucide-react';
 import ShopModal from './ShopModal';
 import StatsModal from './StatsModal';
+import ProfileModal from './ProfileModal';
 
 export default function Sidebar() {
   const { user, logout } = useAuth();
   const [isShopOpen, setIsShopOpen] = useState(false);
   const [isStatsOpen, setIsStatsOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const pet = user?.pet;
@@ -143,6 +146,17 @@ export default function Sidebar() {
               <BarChart2 size={18} />
               <span>İstatistikler & Geçmiş</span>
             </button>
+
+            <button
+              onClick={() => {
+                setIsProfileOpen(true);
+                setIsMobileOpen(false);
+              }}
+              className="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl bg-retro-dark/60 hover:bg-purple-950/60 border border-purple-900/30 hover:border-purple-600/40 text-gray-300 hover:text-purple-300 font-bold text-xs transition-colors"
+            >
+              <Settings size={18} />
+              <span>Profil Ayarları</span>
+            </button>
           </nav>
         </div>
 
@@ -161,6 +175,7 @@ export default function Sidebar() {
       {/* Modallar */}
       <ShopModal isOpen={isShopOpen} onClose={() => setIsShopOpen(false)} />
       <StatsModal isOpen={isStatsOpen} onClose={() => setIsStatsOpen(false)} />
+      <ProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
     </>
   );
 }
