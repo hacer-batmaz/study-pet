@@ -1,4 +1,5 @@
 import Sidebar from './Sidebar';
+import Footer from './Footer';
 
 export default function DashboardLayout({ children }) {
   return (
@@ -11,6 +12,8 @@ export default function DashboardLayout({ children }) {
         <main className="p-4 md:p-8 flex-1">
           {children}
         </main>
+        {/* Dashboard Alt Bilgisi */}
+        <Footer />
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Navbar from './components/Navbar';
+import Footer from './components/Footer';
 import DashboardLayout from './components/DashboardLayout';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
@@ -18,42 +19,50 @@ function ProtectedRoute({ children }) {
   return user ? children : <Navigate to="/login" replace />;
 }
 
+// Halka açık sayfaların üstünde Navbar, altında Footer olan düzen
+function PublicLayout({ children }) {
+  return (
+    <div className="min-h-screen flex flex-col justify-between">
+      <Navbar />
+      <main className="flex-1 flex flex-col">{children}</main>
+      <Footer />
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <div className="min-h-screen bg-retro-dark text-gray-100 flex flex-col font-sans">
+        <div className="min-h-screen bg-retro-dark text-gray-100 font-sans">
           <Routes>
-            {/* Halka Açık Sayfalar (Navbar ile) */}
+            {/* Halka Açık Sayfalar (Navbar + Sayfa + Footer) */}
             <Route
               path="/"
               element={
-                <>
-                  <Navbar />
-                  <main className="flex-1"><HomePage /></main>
-                </>
+                <PublicLayout>
+                  <HomePage />
+                </PublicLayout>
               }
             />
             <Route
               path="/login"
               element={
-                <>
-                  <Navbar />
-                  <main className="flex-1"><LoginPage /></main>
-                </>
+                <PublicLayout>
+                  <LoginPage />
+                </PublicLayout>
               }
             />
             <Route
               path="/register"
               element={
-                <>
-                  <Navbar />
-                  <main className="flex-1"><RegisterPage /></main>
-                </>
+                <PublicLayout>
+                  <RegisterPage />
+                </PublicLayout>
               }
             />
-            
-            {/* Korumalı Dashboard Rotası (Sidebar Düzeni ile) */}
+
+            {/* Korumalı Dashboard Sayfası (Sidebar + DashboardPage + Footer) */}
             <Route
               path="/dashboard"
               element={
