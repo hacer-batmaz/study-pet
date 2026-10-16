@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import api from '../api/client';
 import { 
   Clock, 
   ShoppingBag, 
@@ -8,13 +9,13 @@ import {
   LogOut, 
   Coins, 
   Heart, 
-  Sparkles,
   Menu,
   X
 } from 'lucide-react';
 import ShopModal from './ShopModal';
 import StatsModal from './StatsModal';
 import ProfileModal from './ProfileModal';
+import LogoutConfirmModal from './LogoutConfirmModal';
 
 export default function Sidebar() {
   const { user, logout } = useAuth();
@@ -23,7 +24,50 @@ export default function Sidebar() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
+  // Çıkış Onay Modalı ve Seans State'leri
+  const [activeSessionToAbandon, setActiveSessionToAbandon] = useState(null);
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const [logoutLoading, setLogoutLoading] = useState(false);
+
   const pet = user?.pet;
+
+  // Çıkış butonuna basıldığında aktif seansı denetle
+  const handleLogoutClick = async () => {
+    try {
+      const res = await api.get('/sessions/active');
+      const activeSession = res.data?.activeSession;
+
+      // Devam eden bir seans varsa onay modalını aç
+      if (activeSession && activeSession.remainingSeconds > 0) {
+        setActiveSessionToAbandon(activeSession);
+        setIsLogoutModalOpen(true);
+        return;
+      }
+    } catch (err) {
+      console.warn('Aktif seans sorgulanamadı:', err);
+    }
+
+    // Aktif seans yoksa doğrudan çıkış yap
+    logout();
+  };
+
+  // Onaylandığında seansı terk et, cezayı uygula ve çıkış yap
+  const handleConfirmLogout = async () => {
+    setLogoutLoading(true);
+    try {
+      if (activeSessionToAbandon?.id) {
+        await api.post('/sessions/abandon', {
+          sessionId: activeSessionToAbandon.id
+        });
+      }
+    } catch (err) {
+      console.error('Çıkışta seans iptal edilirken hata:', err);
+    } finally {
+      setLogoutLoading(false);
+      setIsLogoutModalOpen(false);
+      logout();
+    }
+  };
 
   return (
     <>
@@ -52,8 +96,8 @@ export default function Sidebar() {
           isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >
-        {/* Üst Kısım: Logo ve Kapat Butonu */}
         <div>
+          {/* Logo ve Kapat Butonu */}
           <div className="flex items-center justify-between pb-6 border-b border-purple-900/40 mb-6">
             <div className="flex items-center gap-2.5">
               <span className="text-3xl select-none">🐱</span>
@@ -67,7 +111,6 @@ export default function Sidebar() {
               </div>
             </div>
 
-            {/* Mobilde Kapat Butonu */}
             <button
               onClick={() => setIsMobileOpen(false)}
               className="md:hidden text-gray-400 hover:text-white p-1 rounded-lg"
@@ -160,10 +203,10 @@ export default function Sidebar() {
           </nav>
         </div>
 
-        {/* Alt Kısım: Çıkış Yap */}
+        {/* Alt Kısım: Çıkış Butonu */}
         <div className="pt-4 border-t border-purple-900/40">
           <button
-            onClick={logout}
+            onClick={handleLogoutClick}
             className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-red-500/20 bg-red-950/30 hover:bg-red-950/60 text-red-300 font-bold text-xs transition-colors"
           >
             <LogOut size={16} />
@@ -176,6 +219,14 @@ export default function Sidebar() {
       <ShopModal isOpen={isShopOpen} onClose={() => setIsShopOpen(false)} />
       <StatsModal isOpen={isStatsOpen} onClose={() => setIsStatsOpen(false)} />
       <ProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
+
+      {/* Çıkış Uyarı Modalı */}
+      <LogoutConfirmModal
+        isOpen={isLogoutModalOpen}
+        onCancel={() => setIsLogoutModalOpen(false)}
+        onConfirm={handleConfirmLogout}
+        loading={logoutLoading}
+      />
     </>
   );
 }
