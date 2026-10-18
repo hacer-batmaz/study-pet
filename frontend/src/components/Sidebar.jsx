@@ -30,6 +30,23 @@ export default function Sidebar() {
   const [logoutLoading, setLogoutLoading] = useState(false);
 
   const pet = user?.pet;
+  const petType = (pet?.type || 'cat').toLowerCase();
+  const hunger = pet?.hungerLevel ?? 100;
+
+  // 3 Hayvan Türüne Göre Logo ve Karakter Emojisi
+  const getPetEmoji = (type) => {
+    switch (type) {
+      case 'dog':
+        return '🐶';
+      case 'rabbit':
+        return '🐰';
+      case 'cat':
+      default:
+        return '🐱';
+    }
+  };
+
+  const petEmoji = getPetEmoji(petType);
 
   // Çıkış butonuna basıldığında aktif seansı denetle
   const handleLogoutClick = async () => {
@@ -97,10 +114,10 @@ export default function Sidebar() {
         }`}
       >
         <div>
-          {/* Logo ve Kapat Butonu */}
+          {/* Logo ve Kapat Butonu (Kullanıcının seçtiği hayvana göre emoji değişir) */}
           <div className="flex items-center justify-between pb-6 border-b border-purple-900/40 mb-6">
             <div className="flex items-center gap-2.5">
-              <span className="text-3xl select-none">🐱</span>
+              <span className="text-3xl select-none">{petEmoji}</span>
               <div>
                 <h1 className="text-xl font-black tracking-wider text-retro-accent">
                   Study<span className="text-white">Pet</span>
@@ -122,28 +139,41 @@ export default function Sidebar() {
           {/* Hayvan & Kullanıcı Durum Kartı */}
           <div className="bg-retro-dark/80 border border-purple-900/40 rounded-2xl p-4 mb-6">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold text-white truncate">
-                {pet?.name || 'Sanal Dostun'}
-              </span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-950/80 text-retro-purple border border-purple-800/40">
+              <div className="flex items-center gap-1.5 truncate">
+                <span className="text-sm select-none">{petEmoji}</span>
+                <span className="text-xs font-bold text-white truncate">
+                  {pet?.name || 'Sanal Dostun'}
+                </span>
+              </div>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-950/80 text-retro-purple border border-purple-800/40 shrink-0">
                 Lvl {pet?.level || 1}
               </span>
             </div>
 
-            {/* Açlık Barı */}
+            {/* Açlık Barı (Açlık durumuna göre dinamik renk değişimi) */}
             <div className="space-y-1 mb-2">
               <div className="flex justify-between text-[11px] text-gray-400">
                 <span className="flex items-center gap-1">
-                  <Heart size={12} className="text-red-400" /> Açlık
+                  <Heart 
+                    size={12} 
+                    className={hunger < 30 ? 'text-rose-500 animate-ping' : 'text-red-400'} 
+                  /> 
+                  Açlık
                 </span>
-                <span className="font-mono text-gray-200">
-                  {pet?.hungerLevel ?? 100}/100
+                <span className={`font-mono font-bold ${hunger < 30 ? 'text-rose-400' : 'text-gray-200'}`}>
+                  {hunger}/100
                 </span>
               </div>
-              <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-purple-900/30">
+              <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-purple-900/30 p-0.5">
                 <div
-                  className="bg-gradient-to-r from-red-500 to-rose-400 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${pet?.hungerLevel ?? 100}%` }}
+                  className={`h-full rounded-full transition-all duration-300 ${
+                    hunger >= 70
+                      ? 'bg-gradient-to-r from-emerald-500 to-green-400'
+                      : hunger >= 30
+                      ? 'bg-gradient-to-r from-yellow-500 to-amber-400'
+                      : 'bg-gradient-to-r from-rose-600 to-red-500 animate-pulse'
+                  }`}
+                  style={{ width: `${Math.max(5, Math.min(100, hunger))}%` }}
                 />
               </div>
             </div>
