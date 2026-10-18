@@ -13,7 +13,7 @@ const PET_VISUALS = {
     name: 'Köpek',
     happy: { emoji: '🐶', badge: 'Kuyruk Sallıyor!', statusColor: 'text-emerald-400' },
     normal: { emoji: '🐕', badge: 'Sadık Dostun', statusColor: 'text-purple-300' },
-    sad: { emoji: '🥺', badge: 'Acıktı ve Üzgün...', statusColor: 'text-rose-400' }
+    sad: { emoji: '🐶💧', badge: 'Acıktı ve Üzgün...', statusColor: 'text-rose-400' }
   },
   rabbit: {
     name: 'Tavşan',

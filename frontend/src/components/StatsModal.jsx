@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../api/client';
+import { useAuth } from '../context/AuthContext';
 import { 
   BarChart2, 
   X, 
@@ -13,34 +14,49 @@ import {
 } from 'lucide-react';
 
 export default function StatsModal({ isOpen, onClose }) {
+  const { user } = useAuth();
   const [stats, setStats] = useState(null);
   const [history, setHistory] = useState([]);
   const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'history'
   const [loading, setLoading] = useState(false);
 
-  // Filtre State'leri (Varsayılan: 'today' yani Bugünün Analizi)
+  // Filtre State'leri
   const [timeRange, setTimeRange] = useState('today'); // 'today' | 'week' | 'all' | 'custom'
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [availableCategories, setAvailableCategories] = useState([]);
+  const [availableCategories, setAvailableCategories] = useState(['Genel Çalışma']);
+
+  // Kullanıcıya özel localStorage anahtarı
+  const storageKey = user?.id ? `studypet_categories_${user.id}` : null;
 
   useEffect(() => {
     if (isOpen) {
-      // Kaydedilmiş kategorileri localStorage'dan oku
-      try {
-        const saved = localStorage.getItem('studypet_user_categories');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) setAvailableCategories(parsed);
+      if (storageKey) {
+        try {
+          const saved = localStorage.getItem(storageKey);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setAvailableCategories(parsed);
+            } else {
+              setAvailableCategories(['Genel Çalışma']);
+            }
+          } else {
+            setAvailableCategories(['Genel Çalışma']);
+          }
+        } catch (e) {
+          console.warn('Kategoriler okunamadı:', e);
+          setAvailableCategories(['Genel Çalışma']);
         }
-      } catch (e) {
-        console.warn('Kategoriler okunamadı:', e);
+      } else {
+        setAvailableCategories(['Genel Çalışma']);
       }
+
       fetchStats();
       fetchHistory();
     }
-  }, [isOpen, timeRange, selectedCategory, startDate, endDate]);
+  }, [isOpen, storageKey, timeRange, selectedCategory, startDate, endDate]);
 
   const fetchStats = async () => {
     setLoading(true);
@@ -260,7 +276,6 @@ export default function StatsModal({ isOpen, onClose }) {
                             {cat.minutes} dk ({cat.percentage}%)
                           </span>
                         </div>
-                        {/* İlerleme Çubuğu */}
                         <div className="w-full bg-slate-900/80 rounded-full h-2.5 overflow-hidden border border-purple-900/30">
                           <div
                             className="bg-gradient-to-r from-purple-500 to-retro-accent h-2.5 rounded-full transition-all duration-500"

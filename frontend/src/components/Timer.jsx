@@ -7,14 +7,13 @@ import { Play, Square, Sparkles, BookOpen, Clock, Plus, Trash2, X } from 'lucide
 
 const PRESETS = [15, 25, 45, 60];
 
-// Web Audio API ile retro tamamlama melodisi (yaklaşık 1-1.5 saniye)
+// Web Audio API ile retro tamamlama melodisi
 const playCompletionSound = () => { 
   try {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     if (!AudioContext) return;
     const ctx = new AudioContext();
 
-    // Çalınacak retro arpej notaları (C5 -> E5 -> G5 -> C6)
     const notes = [
       { freq: 523.25, start: 0, duration: 0.18 },
       { freq: 659.25, start: 0.18, duration: 0.18 },
@@ -26,7 +25,7 @@ const playCompletionSound = () => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
 
-      osc.type = 'triangle'; // Retro / yumuşak 8-bit tınısı
+      osc.type = 'triangle';
       osc.frequency.setValueAtTime(freq, ctx.currentTime + start);
 
       gain.gain.setValueAtTime(0.15, ctx.currentTime + start);
@@ -46,20 +45,11 @@ const playCompletionSound = () => {
 export default function Timer({ onSessionFinished }) {
   const { user, updateUserState } = useAuth();
 
-  const [categories, setCategories] = useState(() => {
-    const saved = localStorage.getItem('studypet_user_categories');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      } catch {
-        // Hata durumunda varsayılan
-      }
-    }
-    return ['Genel Çalışma'];
-  });
+  // Kullanıcıya özel localStorage anahtarı
+  const storageKey = user?.id ? `studypet_categories_${user.id}` : null;
 
-  const [category, setCategory] = useState(() => categories[0] || 'Genel Çalışma');
+  const [categories, setCategories] = useState(['Genel Çalışma']);
+  const [category, setCategory] = useState('Genel Çalışma');
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
 
@@ -70,21 +60,42 @@ export default function Timer({ onSessionFinished }) {
   const [sessionId, setSessionId] = useState(null);
 
   const [isAbandonModalOpen, setIsAbandonModalOpen] = useState(false);
-  const [isResultModalOpen, setIsResultModalOpen] = useState(false); // Pop-up görünürlüğü
-  const [abandonResultData, setAbandonResultData] = useState(null); // Pop-up verisi
+  const [isResultModalOpen, setIsResultModalOpen] = useState(false);
+  const [abandonResultData, setAbandonResultData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [completionMessage, setCompletionMessage] = useState(null);
 
   const timerRef = useRef(null);
-  const endsAtRef = useRef(null); // Seansın biteceği an (ms). Sayaç buradan hesaplanır, saniye sayarak değil.
-  const completingRef = useRef(false); // Aynı seansın iki kez tamamlanmasını engeller
+  const endsAtRef = useRef(null);
+  const completingRef = useRef(false);
+
+  // Kullanıcı değiştikçe o kullanıcıya özel kategorileri localStorage'dan oku
+  useEffect(() => {
+    if (storageKey) {
+      try {
+        const saved = localStorage.getItem(storageKey);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setCategories(parsed);
+            setCategory(parsed[0]);
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('Kategoriler okunamadı:', e);
+      }
+      // İlk defa giriş yapılmışsa sadece 'Genel Çalışma'
+      setCategories(['Genel Çalışma']);
+      setCategory('Genel Çalışma');
+    }
+  }, [storageKey]);
 
   // Sayfa yenilendiğinde (F5) backend'deki aktif seansı kontrol edip geri yükler
   useEffect(() => {
     const checkActiveSession = async () => {
       try {
         const res = await api.get('/sessions/active');
-        console.log('Aktif Seans Kontrolü:', res.data);
         const session = res.data?.activeSession;
 
         if (session) {
@@ -97,8 +108,6 @@ export default function Timer({ onSessionFinished }) {
             setCustomInput(session.durationMinutes.toString());
           }
 
-          // Kalan süre sunucudan geliyor. Bitiş anını buna göre kuruyoruz.
-          // Süre 0 ise de isRunning=true yapıyoruz; aşağıdaki effect seansı otomatik tamamlar.
           const remaining = Math.max(0, session.remainingSeconds ?? 0);
           endsAtRef.current = Date.now() + remaining * 1000;
           setTimeLeft(remaining);
@@ -111,11 +120,8 @@ export default function Timer({ onSessionFinished }) {
 
     checkActiveSession();
   }, []);
-  
-  useEffect(() => {
-    localStorage.setItem('studypet_user_categories', JSON.stringify(categories));
-  }, [categories]);
 
+  // Yeni kategori ekleme (Kişiye özel kaydeder)
   const handleAddCategory = (e) => {
     e.preventDefault();
     const trimmed = newCategoryName.trim();
@@ -133,19 +139,25 @@ export default function Timer({ onSessionFinished }) {
     setCategory(trimmed);
     setNewCategoryName('');
     setIsAddingCategory(false);
+
+    if (storageKey) {
+      localStorage.setItem(storageKey, JSON.stringify(updated));
+    }
   };
 
+  // Kategori silme (Genel Çalışma asla silinemez)
   const handleDeleteCategory = (catToDelete) => {
-    if (categories.length <= 1) {
-      alert('En az bir çalışma kategorisi bulunmalıdır.');
+    if (catToDelete === 'Genel Çalışma') {
+      alert('Varsayılan "Genel Çalışma" kategorisi silinemez.');
       return;
     }
 
     const updated = categories.filter((c) => c !== catToDelete);
     setCategories(updated);
+    setCategory('Genel Çalışma');
 
-    if (category === catToDelete) {
-      setCategory(updated[0]);
+    if (storageKey) {
+      localStorage.setItem(storageKey, JSON.stringify(updated));
     }
   };
 
@@ -167,7 +179,7 @@ export default function Timer({ onSessionFinished }) {
     }
   };
 
-  // Zamanlayıcı döngüsü: her tikte kalan süreyi bitiş anından hesaplar (arka planda kaymaz)
+  // Zamanlayıcı döngüsü
   useEffect(() => {
     if (!isRunning) return;
 
@@ -180,7 +192,6 @@ export default function Timer({ onSessionFinished }) {
     tick();
     timerRef.current = setInterval(tick, 1000);
 
-    // Sekmeye geri dönünce beklemeden güncelle
     const onVisible = () => {
       if (document.visibilityState === 'visible') tick();
     };
@@ -192,7 +203,7 @@ export default function Timer({ onSessionFinished }) {
     };
   }, [isRunning]);
 
-  // Süre 0'a ulaşınca seansı tamamla (hem normal akış hem sayfa yenileme sonrası için)
+  // Süre 0'a ulaşınca seansı tamamla
   useEffect(() => {
     if (isRunning && timeLeft === 0 && !completingRef.current) {
       setIsAbandonModalOpen(false);
@@ -234,16 +245,13 @@ export default function Timer({ onSessionFinished }) {
     setLoading(true);
 
     try {
-      console.log('Seans Tamamlama İsteği Atılıyor, sessionId:', sessionId);
       const res = await api.post('/sessions/complete', { sessionId });
-      console.log('Seans Tamamlama Yanıtı:', res.data);
 
       endsAtRef.current = null;
       setIsRunning(false);
       setSessionId(null);
       setTimeLeft(selectedDuration * 60);
 
-      // Backend'den dönen güncel bakiye ve hayvan durumu
       const updatedCoins = res.data?.userCoins ?? res.data?.coins ?? res.data?.totalCoins;
       const petData = res.data?.pet || {};
 
@@ -259,7 +267,6 @@ export default function Timer({ onSessionFinished }) {
         })
       });
 
-      // Ödülleri rewards nesnesinden veya doğrudan ana nesneden oku
       const earnedCoinsAmount =
         res.data?.rewards?.coinsEarned ??
         res.data?.rewards?.coins ??
@@ -274,7 +281,6 @@ export default function Timer({ onSessionFinished }) {
         res.data?.earnedXp ??
         0;
 
-      // Mesaj state'ini doldur
       setCompletionMessage({
         earnedCoins: earnedCoinsAmount,
         earnedXp: earnedXpAmount,
@@ -283,7 +289,7 @@ export default function Timer({ onSessionFinished }) {
 
       if (onSessionFinished) onSessionFinished();
     } catch (err) {
-      console.error('Seans Tamamlama Hatası Detayı:', err.response?.data || err.message);
+      console.error('Seans Tamamlama Hatası:', err.response?.data || err.message);
       completingRef.current = false;
       endsAtRef.current = null;
       setIsRunning(false);
@@ -294,7 +300,6 @@ export default function Timer({ onSessionFinished }) {
   };
 
   const handleOpenAbandonModal = () => {
-    // Sayaç durdurulmaz: sunucu tarafında süre akmaya devam ediyor
     setIsAbandonModalOpen(true);
   };
 
@@ -305,7 +310,6 @@ export default function Timer({ onSessionFinished }) {
   const handleConfirmAbandon = async () => {
     setLoading(true);
     try {
-      // Backend'e sessionId'yi yolla
       const res = await api.post('/sessions/abandon', {
         sessionId: sessionId ? Number(sessionId) : null
       });
@@ -317,7 +321,6 @@ export default function Timer({ onSessionFinished }) {
       setIsAbandonModalOpen(false);
 
       const updatedHunger = res.data?.pet?.hungerLevel;
-      // Backend'den gelen ceza veya yerel hesaplama
       const dynamicPenalty = res.data?.penaltyAmount ?? Math.min(40, 10 + Math.floor(selectedDuration / 5));
 
       if (res.data?.pet) {
@@ -329,7 +332,6 @@ export default function Timer({ onSessionFinished }) {
         });
       }
 
-      // Pop-up modalını aç
       setAbandonResultData({
         abandonedCategory: category,
         penaltyAmount: dynamicPenalty,
@@ -339,8 +341,7 @@ export default function Timer({ onSessionFinished }) {
 
       if (onSessionFinished) onSessionFinished();
     } catch (err) {
-      console.error('Abandon Hatası Detayı:', err.response?.data || err.message);
-      // Hata durumunda da sayacı durdurup kullanıcıyı kilitlememek için:
+      console.error('Abandon Hatası:', err.response?.data || err.message);
       endsAtRef.current = null;
       setIsRunning(false);
       setIsAbandonModalOpen(false);
@@ -435,7 +436,7 @@ export default function Timer({ onSessionFinished }) {
                   ))}
                 </select>
 
-                {categories.length > 1 && (
+                {categories.length > 1 && category !== 'Genel Çalışma' && (
                   <button
                     type="button"
                     onClick={() => handleDeleteCategory(category)}
@@ -530,7 +531,6 @@ export default function Timer({ onSessionFinished }) {
         )}
       </div>
 
-      {/* 1. Vazgeç Onay Modalı */}
       <AbandonModal
         isOpen={isAbandonModalOpen}
         onCancel={handleCancelAbandon}
@@ -540,7 +540,6 @@ export default function Timer({ onSessionFinished }) {
         loading={loading}
       />
 
-      {/* 2. Vazgeçildikten Sonra Çıkan Pop-up Ekranı */}
       <AbandonResultModal
         isOpen={isResultModalOpen}
         onClose={() => setIsResultModalOpen(false)}
