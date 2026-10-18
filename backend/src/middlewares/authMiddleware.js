@@ -16,3 +16,10 @@ export const authenticateToken = (req, res, next) => {
         next();
     });
 }
+
+export const requireAdmin = (req, res, next) => {
+  if (!req.user || req.user.role !== 'ADMIN') {
+    return res.status(403).json({ error: 'Bu alana erişim yetkiniz bulunmamaktadır. (Yalnızca Admin)' });
+  }
+  next();
+};

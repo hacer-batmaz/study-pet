@@ -40,16 +40,16 @@ export const register = async (req, res) => {
       return res.status(409).json({ error: 'Bu kullanıcı adı veya e-posta adresi zaten kullanımda.' });
     }
 
-    //parola hashleme
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
-    // Kullanıcıyı ve varsayılan hayvanını tek işlemde oluştur
     const newUser = await prisma.user.create({
       data: {
         username,
         email,
         passwordHash,
+        role: 'USER',
+        isActive: true,
         pet: {
           create: {
             name: petName,
@@ -67,7 +67,7 @@ export const register = async (req, res) => {
 
     //JWT token uretimi
     const token = jwt.sign(
-      { userId: newUser.id, username: newUser.username },
+      { userId: newUser.id, username: newUser.username, role: newUser.role },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -80,6 +80,8 @@ export const register = async (req, res) => {
         username: newUser.username,
         email: newUser.email,
         coins: newUser.coins,
+        role: newUser.role,
+        isActive: newUser.isActive,
         pet: newUser.pet
       }
     });
@@ -112,13 +114,19 @@ export const login = async (req, res) => {
       return res.status(401).json({ error: 'E-posta veya şifre hatalı.' });
     }
 
+    // Hesap askıya alınmış mı denetimi (NFR / UC-03 kuralı)
+    if (user.isActive === false) {
+      return res.status(403).json({ error: 'Hesabınız yönetici tarafından askıya alınmıştır.' });
+    }
+
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) {
       return res.status(401).json({ error: 'E-posta veya şifre hatalı.' });
     }
 
+    //token icerisine role eklendi
     const token = jwt.sign(
-      { userId: user.id, username: user.username },
+      { userId: user.id, username: user.username, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -131,6 +139,8 @@ export const login = async (req, res) => {
         username: user.username,
         email: user.email,
         coins: user.coins,
+        role: user.role,
+        isActive: user.isActive,
         pet: user.pet
       }
     });
@@ -150,6 +160,8 @@ export const getMe = async (req, res) => {
         username: true,
         email: true,
         coins: true,
+        role: true,
+        isActive: true,
         createdAt: true,
         pet: true
       }
@@ -159,6 +171,11 @@ export const getMe = async (req, res) => {
       return res.status(404).json({ error: 'Kullanıcı bulunamadı.' });
     }
 
+    //oturum devam ederken arkaplanda askiya alınmissa engelle
+    if (user.isActive === false) {
+      return res.status(403).json({ error: 'Hesabınız askıya alınmıştır.' });
+    }
+
     return res.status(200).json(user);
   } catch (error) {
     console.error('Kullanıcı bilgisi hatası:', error);
@@ -166,7 +183,7 @@ export const getMe = async (req, res) => {
   }
 };
 
-// Profil bilgilerini güncelleme (Kullanıcı adı, e-posta, evcil hayvan adı)
+//profil bilgilerini guncelleme
 export const updateProfile = async (req, res) => {
   try {
     const userId = req.user.userId;
@@ -176,7 +193,6 @@ export const updateProfile = async (req, res) => {
       return res.status(400).json({ error: 'Kullanıcı adı boş bırakılamaz.' });
     }
 
-    // Kullanıcının mevcut verilerini ve hayvanını çek
     const currentUser = await prisma.user.findUnique({
       where: { id: userId },
       include: { pet: true }
@@ -202,7 +218,6 @@ export const updateProfile = async (req, res) => {
       return res.status(400).json({ error: 'Hayvan adı en fazla 30 karakter olabilir.' });
     }
 
-    // Kullanıcı adı değişmişse benzersizlik kontrolü yap
     if (trimmedUsername !== currentUser.username) {
       const existingUser = await prisma.user.findFirst({
         where: {
@@ -216,7 +231,6 @@ export const updateProfile = async (req, res) => {
       }
     }
 
-    // E-posta değişmişse benzersizlik kontrolü yap
     if (trimmedEmail && trimmedEmail !== currentUser.email) {
       const existingEmail = await prisma.user.findFirst({
         where: {
@@ -230,7 +244,6 @@ export const updateProfile = async (req, res) => {
       }
     }
 
-    // Değişiklikleri tespit et
     const usernameChanged = trimmedUsername !== currentUser.username;
     const emailChanged = Boolean(trimmedEmail) && trimmedEmail !== currentUser.email;
     const petChanged =
@@ -247,7 +260,6 @@ export const updateProfile = async (req, res) => {
       changeMessages.push(`Sanal hayvan adı değiştirildi: "${currentUser.pet.name}" → "${trimmedPetName}".`);
     }
 
-    // Değişiklik yoksa DB'ye yazma (frontend user.* beklediği için user'ı yine döndür)
     if (changeMessages.length === 0) {
       return res.status(200).json({
         message: 'Herhangi bir bilgi değiştirilmedi.',
@@ -256,12 +268,13 @@ export const updateProfile = async (req, res) => {
           username: currentUser.username,
           email: currentUser.email,
           coins: currentUser.coins,
+          role: currentUser.role,
+          isActive: currentUser.isActive,
           pet: currentUser.pet
         }
       });
     }
 
-    // Kullanıcı ve hayvan güncellemesi tek transaction'da
     const [updatedUser, updatedPet] = await prisma.$transaction(async (tx) => {
       const u = await tx.user.update({
         where: { id: userId },
@@ -269,7 +282,7 @@ export const updateProfile = async (req, res) => {
           ...(usernameChanged && { username: trimmedUsername }),
           ...(emailChanged && { email: trimmedEmail })
         },
-        select: { id: true, username: true, email: true, coins: true }
+        select: { id: true, username: true, email: true, coins: true, role: true, isActive: true }
       });
 
       const p = petChanged
@@ -287,7 +300,6 @@ export const updateProfile = async (req, res) => {
       user: { ...updatedUser, pet: updatedPet }
     });
   } catch (error) {
-    // Kontrol ile update arasında araya giren aynı kullanıcı adı/e-posta
     if (error.code === 'P2002') {
       return res.status(409).json({ error: 'Bu kullanıcı adı veya e-posta zaten kullanılıyor.' });
     }
@@ -306,7 +318,6 @@ export const changePassword = async (req, res) => {
       return res.status(400).json({ error: 'Lütfen mevcut ve yeni şifrenizi girin.' });
     }
 
-    // Yeni şifre mevcut şifre ile aynı mı kontrolü
     if (currentPassword === newPassword) {
       return res.status(400).json({ error: 'Yeni şifre mevcut şifre ile aynı olamaz.' });
     }
@@ -323,13 +334,11 @@ export const changePassword = async (req, res) => {
       return res.status(404).json({ error: 'Kullanıcı bulunamadı.' });
     }
 
-    // Mevcut şifreyi doğrula
     const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
     if (!isMatch) {
       return res.status(401).json({ error: 'Mevcut şifreniz hatalı.' });
     }
 
-    // Yeni şifreyi hashle ve kaydet
     const salt = await bcrypt.genSalt(10);
     const newPasswordHash = await bcrypt.hash(newPassword, salt);
 
