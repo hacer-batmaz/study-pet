@@ -3,6 +3,7 @@ import {
   getAdminStats, 
   getAllUsers, 
   updateUserStatus, 
+  createUserByAdmin,
   getAdminShopItems, 
   createShopItem, 
   toggleShopItem, 
@@ -18,7 +19,7 @@ router.get('/stats', getAdminStats);
 
 router.get('/users', getAllUsers);
 router.put('/users/:id/status', updateUserStatus);
-
+router.post('/users', createUserByAdmin);
 router.get('/shop', getAdminShopItems);
 router.post('/shop', createShopItem);
 router.put('/shop/:id/toggle', toggleShopItem);

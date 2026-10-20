@@ -1,4 +1,5 @@
 import prisma from '../config/prismaClient.js';
+import bcrypt from 'bcryptjs';
 
 export const getAdminStats = async (req, res) => {
   try {
@@ -263,5 +264,95 @@ export const getAdminLogs = async (req, res) => {
     res.json({ logs });
   } catch (error) {
     res.status(500).json({ error: 'Denetim kayıtları alınamadı.' });
+  }
+};
+
+
+
+//admin kullanici ekleme
+export const createUserByAdmin = async (req, res) => {
+  try {
+    const { 
+      username: rawUsername, 
+      email: rawEmail, 
+      password, 
+      role = 'USER', 
+      petName: rawPetName, 
+      petType = 'cat' 
+    } = req.body;
+    const adminId = req.user.userId;
+
+    if (!rawUsername || !rawEmail || !password || !rawPetName) {
+      return res.status(400).json({ error: 'Lütfen kullanıcı adı, e-posta, şifre ve evcil hayvan adını doldurun.' });
+    }
+
+    const username = rawUsername.trim();
+    const email = rawEmail.trim().toLowerCase();
+    const petName = rawPetName.trim();
+
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (username.length < 3 || username.length > 30) {
+      return res.status(400).json({ error: 'Kullanıcı adı 3-30 karakter olmalıdır.' });
+    }
+    if (!EMAIL_RE.test(email)) {
+      return res.status(400).json({ error: 'Geçerli bir e-posta adresi giriniz.' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Şifre en az 6 karakter olmalıdır.' });
+    }
+
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [{ email }, { username }]
+      }
+    });
+
+    if (existingUser) {
+      return res.status(409).json({ error: 'Bu kullanıcı adı veya e-posta adresi zaten kullanımda.' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(password, salt);
+
+    //kullanici ve pet olustur
+    const newUser = await prisma.user.create({
+      data: {
+        username,
+        email,
+        passwordHash,
+        role: ['USER', 'ADMIN'].includes(role) ? role : 'USER',
+        isActive: true,
+        coins: 50,
+        pet: {
+          create: {
+            name: petName,
+            type: ['cat', 'dog', 'rabbit'].includes(petType) ? petType : 'cat',
+            hungerLevel: 100,
+            xp: 0,
+            level: 1
+          }
+        }
+      },
+      include: {
+        pet: true
+      }
+    });
+
+    await prisma.adminLog.create({
+      data: {
+        adminId,
+        action: 'USER_CREATE',
+        target: `User #${newUser.id} (${newUser.username})`,
+        details: `Rol: ${newUser.role}, Pet: ${newUser.pet?.name} (${newUser.pet?.type})`
+      }
+    });
+
+    return res.status(201).json({
+      message: 'Kullanıcı ve evcil hayvanı başarıyla oluşturuldu.',
+      user: newUser
+    });
+  } catch (error) {
+    console.error('Admin kullanıcı oluşturma hatası:', error);
+    return res.status(500).json({ error: 'Kullanıcı oluşturulurken sunucu hatası oluştu.' });
   }
 };

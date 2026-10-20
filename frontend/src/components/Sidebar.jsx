@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/client';
 import { 
@@ -10,7 +11,8 @@ import {
   Coins, 
   Heart, 
   Menu,
-  X
+  X,
+  ShieldAlert
 } from 'lucide-react';
 import ShopModal from './ShopModal';
 import StatsModal from './StatsModal';
@@ -114,9 +116,9 @@ export default function Sidebar() {
         }`}
       >
         <div>
-          {/* Logo ve Kapat Butonu (Kullanıcının seçtiği hayvana göre emoji değişir) */}
+          {/* Logo ve Kapat Butonu */}
           <div className="flex items-center justify-between pb-6 border-b border-purple-900/40 mb-6">
-            <div className="flex items-center gap-2.5">
+            <Link to="/dashboard" className="flex items-center gap-2.5">
               <span className="text-3xl select-none">{petEmoji}</span>
               <div>
                 <h1 className="text-xl font-black tracking-wider text-retro-accent">
@@ -126,7 +128,7 @@ export default function Sidebar() {
                   Odaklan & Büyüt
                 </p>
               </div>
-            </div>
+            </Link>
 
             <button
               onClick={() => setIsMobileOpen(false)}
@@ -150,7 +152,7 @@ export default function Sidebar() {
               </span>
             </div>
 
-            {/* Açlık Barı (Açlık durumuna göre dinamik renk değişimi) */}
+            {/* Açlık Barı */}
             <div className="space-y-1 mb-2">
               <div className="flex justify-between text-[11px] text-gray-400">
                 <span className="flex items-center gap-1">
@@ -190,13 +192,14 @@ export default function Sidebar() {
 
           {/* Menü Butonları */}
           <nav className="space-y-2">
-            <button
+            <Link
+              to="/dashboard"
               onClick={() => setIsMobileOpen(false)}
               className="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl bg-retro-purple/20 border border-retro-purple/40 text-retro-purple hover:bg-retro-purple/30 font-bold text-xs transition-colors"
             >
               <Clock size={18} />
               <span>Çalışma Sayacı</span>
-            </button>
+            </Link>
 
             <button
               onClick={() => {
@@ -230,6 +233,18 @@ export default function Sidebar() {
               <Settings size={18} />
               <span>Profil Ayarları</span>
             </button>
+
+            {/* Yalnızca ADMIN rolündeki kullanıcılara görünen Yönetim Paneli Butonu */}
+            {user?.role === 'ADMIN' && (
+              <Link
+                to="/admin"
+                onClick={() => setIsMobileOpen(false)}
+                className="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl bg-amber-500/10 border border-amber-500/40 text-amber-400 hover:bg-amber-500/20 font-bold text-xs transition-colors shadow-sm mt-3"
+              >
+                <ShieldAlert size={18} />
+                <span>Yönetim Paneli</span>
+              </Link>
+            )}
           </nav>
         </div>
 

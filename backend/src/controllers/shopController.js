@@ -2,13 +2,21 @@ import prisma from '../config/prismaClient.js';
 
 //magazadaki urunleri listeler
 export const getShopItems = async (req, res) => {
-    try {
-        const items = await prisma.shopItem.findMany();
-        return res.status(200).json(items);
-    } catch (error) {
-        console.error('Mağaza ürünleri alınırken hata oluştu:', error);
-        return res.status(500).json({ error: 'Sunucu hatası.' });
-    }
+  try {
+    const items = await prisma.shopItem.findMany({
+      where: {
+        isActive: true
+      },
+      orderBy: {
+        id: 'asc'
+      }
+    });
+
+    return res.status(200).json({ items });
+  } catch (error) {
+    console.error('Mağaza ürünleri getirilirken hata:', error);
+    return res.status(500).json({ error: 'Ürünler yüklenemedi.' });
+  }
 };
 
 //esya satin alma

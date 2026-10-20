@@ -7,6 +7,7 @@ import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
+import AdminPage from './pages/AdminPage';
 
 // Giriş yapılmamışsa login'e atan koruma bileşeni
 function ProtectedRoute({ children }) {
@@ -17,6 +18,25 @@ function ProtectedRoute({ children }) {
   }
 
   return user ? children : <Navigate to="/login" replace />;
+}
+
+// Yalnızca ADMIN rolündeki kullanıcıların erişimine izin veren koruma bileşeni
+function AdminRoute({ children }) {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center text-gray-400">Yükleniyor...</div>;
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user.role !== 'ADMIN') {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return children;
 }
 
 // Halka açık sayfaların üstünde Navbar, altında Footer olan düzen
@@ -71,6 +91,18 @@ export default function App() {
                     <DashboardPage />
                   </DashboardLayout>
                 </ProtectedRoute>
+              }
+            />
+
+            {/* Korumalı Yönetim Paneli Sayfası (Yalnızca ADMIN) */}
+            <Route
+              path="/admin"
+              element={
+                <AdminRoute>
+                  <DashboardLayout>
+                    <AdminPage />
+                  </DashboardLayout>
+                </AdminRoute>
               }
             />
 
