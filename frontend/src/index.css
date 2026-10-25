@@ -9,3 +9,9 @@ body {
   color: #f8f8f2;
   min-height: 100vh;
 }
+
+.pixelated {
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+}
