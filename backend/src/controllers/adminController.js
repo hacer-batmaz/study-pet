@@ -5,7 +5,7 @@ export const getAdminStats = async (req, res) => {
   try {
     const totalUsers = await prisma.user.count();
     const activeUsers = await prisma.user.count({ where: { isActive: true } });
-    
+
     const totalSessions = await prisma.studySession.count();
     const completedSessions = await prisma.studySession.count({ where: { status: 'completed' } });
     const abandonedSessions = await prisma.studySession.count({ where: { status: 'abandoned' } });
@@ -30,8 +30,8 @@ export const getAdminStats = async (req, res) => {
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
 
-    const abandonedRate = totalSessions > 0 
-      ? Math.round((abandonedSessions / totalSessions) * 100) 
+    const abandonedRate = totalSessions > 0
+      ? Math.round((abandonedSessions / totalSessions) * 100)
       : 0;
 
     res.json({
@@ -51,7 +51,7 @@ export const getAdminStats = async (req, res) => {
   }
 };
 
-//kullanici listesi
+// Kullanici listesi
 export const getAllUsers = async (req, res) => {
   try {
     const { search, role, status } = req.query;
@@ -104,7 +104,7 @@ export const getAllUsers = async (req, res) => {
   }
 };
 
-//kullanici durumunu guncelleme
+// Kullanici durumunu guncelleme
 export const updateUserStatus = async (req, res) => {
   try {
     const targetUserId = parseInt(req.params.id, 10);
@@ -119,7 +119,7 @@ export const updateUserStatus = async (req, res) => {
       return res.status(404).json({ error: 'Kullanıcı bulunamadı.' });
     }
 
-    //adminin kendi yetkisini dusurmesini veya kendini askiya almasini engelle
+    // Adminin kendi yetkisini dusurmesini veya kendini askiya almasini engelle
     if (targetUser.id === adminId && (isActive === false || role === 'USER')) {
       return res.status(400).json({ error: 'Kendi aktif yönetici hesabınızı askıya alamaz veya yetkinizi düşüremezsiniz.' });
     }
@@ -133,7 +133,7 @@ export const updateUserStatus = async (req, res) => {
       data: updatedData
     });
 
-    //kullanici askiya alindiysa aktif seansini abandoned yap
+    // Kullanici askiya alindiysa aktif seansini abandoned yap
     if (isActive === false) {
       await prisma.studySession.updateMany({
         where: {
@@ -144,7 +144,7 @@ export const updateUserStatus = async (req, res) => {
       });
     }
 
-    //AdminLog kaydi olustur
+    // AdminLog kaydi olustur
     await prisma.adminLog.create({
       data: {
         adminId,
@@ -169,7 +169,7 @@ export const updateUserStatus = async (req, res) => {
   }
 };
 
-//magaza urun listesi
+// Magaza urun listesi
 export const getAdminShopItems = async (req, res) => {
   try {
     const items = await prisma.shopItem.findMany({
@@ -181,7 +181,7 @@ export const getAdminShopItems = async (req, res) => {
   }
 };
 
-//yeni urun ekleme
+// Yeni urun ekleme (PNG bağımlılığı kaldırıldı, emoji desteği sağlandı)
 export const createShopItem = async (req, res) => {
   try {
     const { name, type, price, effectValue, spriteUrl } = req.body;
@@ -197,7 +197,7 @@ export const createShopItem = async (req, res) => {
         type: type || 'food',
         price: parseInt(price, 10),
         effectValue: parseInt(effectValue, 10),
-        spriteUrl: spriteUrl || '/assets/items/apple.png',
+        spriteUrl: spriteUrl || '🍖',
         isActive: true
       }
     });
@@ -207,7 +207,7 @@ export const createShopItem = async (req, res) => {
         adminId,
         action: 'ITEM_CREATE',
         target: `Item #${newItem.id} (${newItem.name})`,
-        details: `Fiyat: ${newItem.price}, Etki: +${newItem.effectValue}`
+        details: `Fiyat: ${newItem.price}, Etki: +${newItem.effectValue}, Simge: ${newItem.spriteUrl}`
       }
     });
 
@@ -218,7 +218,7 @@ export const createShopItem = async (req, res) => {
   }
 };
 
-//magaza urunu aktif/pasif yapma
+// Magaza urunu aktif/pasif yapma (Soft delete)
 export const toggleShopItem = async (req, res) => {
   try {
     const itemId = parseInt(req.params.id, 10);
@@ -249,7 +249,7 @@ export const toggleShopItem = async (req, res) => {
   }
 };
 
-//logları çekmek için bir endpoint
+// Logları çekmek için endpoint
 export const getAdminLogs = async (req, res) => {
   try {
     const logs = await prisma.adminLog.findMany({
@@ -267,18 +267,16 @@ export const getAdminLogs = async (req, res) => {
   }
 };
 
-
-
-//admin kullanici ekleme
+// Admin kullanıcı ekleme
 export const createUserByAdmin = async (req, res) => {
   try {
-    const { 
-      username: rawUsername, 
-      email: rawEmail, 
-      password, 
-      role = 'USER', 
-      petName: rawPetName, 
-      petType = 'cat' 
+    const {
+      username: rawUsername,
+      email: rawEmail,
+      password,
+      role = 'USER',
+      petName: rawPetName,
+      petType = 'cat'
     } = req.body;
     const adminId = req.user.userId;
 
@@ -314,7 +312,6 @@ export const createUserByAdmin = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
-    //kullanici ve pet olustur
     const newUser = await prisma.user.create({
       data: {
         username,

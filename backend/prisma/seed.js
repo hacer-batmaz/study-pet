@@ -50,59 +50,61 @@ async function main() {
   // İlişkisel foreign key hatası almamak için temizleme işlemini güvenli yapalım
   await prisma.shopItem.deleteMany({});
 
-  const items = [
+  // backend/prisma/seed.js içinde mağaza ürünleri kısmı:
+  const defaultItems = [
     {
       name: 'Kırmızı Elma',
       type: 'food',
       price: 15,
-      effectValue: 20, // +20 Açlık doldurur
-      spriteUrl: '/assets/items/apple.png',
+      effectValue: 15,
+      spriteUrl: '🍎',
       isActive: true
     },
     {
-      name: 'Taze Balık',
-      type: 'food',
-      price: 30,
-      effectValue: 45, // +45 Açlık doldurur
-      spriteUrl: '/assets/items/fish.png',
-      isActive: true
-    },
-    {
-      name: 'Havuç Şöleni',
+      name: 'Taze Havuç',
       type: 'food',
       price: 20,
-      effectValue: 25,
-      spriteUrl: '/assets/items/carrot.png',
+      effectValue: 20,
+      spriteUrl: '🥕',
       isActive: true
     },
     {
-      name: 'Sihirli Kek',
+      name: 'Lezzetli Balık',
+      type: 'food',
+      price: 30,
+      effectValue: 35,
+      spriteUrl: '🐟',
+      isActive: true
+    },
+    {
+      name: 'Çilekli Kek',
       type: 'food',
       price: 60,
-      effectValue: 100, // Açlığı tamamen doldurur
-      spriteUrl: '/assets/items/cake.png',
-      isActive: true
-    },
-    {
-      name: 'Dedektif Şapkası',
-      type: 'accessory',
-      price: 100,
-      effectValue: 0,
-      spriteUrl: '/assets/items/hat_detective.png',
-      isActive: true
-    },
-    {
-      name: 'Çalışma Masası Bitkisi',
-      type: 'decor',
-      price: 75,
-      effectValue: 0,
-      spriteUrl: '/assets/items/desk_plant.png',
+      effectValue: 60,
+      spriteUrl: '🍰',
       isActive: true
     }
   ];
 
-  for (const item of items) {
-    await prisma.shopItem.create({ data: item });
+  for (const item of defaultItems) {
+    const existing = await prisma.shopItem.findFirst({
+      where: { name: item.name }
+    });
+
+    if (!existing) {
+      await prisma.shopItem.create({ data: item });
+    } else {
+      // Varsa spriteUrl ve isActive alanlarını güncelle
+      await prisma.shopItem.update({
+        where: { id: existing.id },
+        data: {
+          spriteUrl: item.spriteUrl,
+          isActive: true,
+          price: item.price,
+          effectValue: item.effectValue
+        }
+      });
+    }
   }
 
   console.log('Mağaza verileri ve Admin hesabı başarıyla hazırlandı.');

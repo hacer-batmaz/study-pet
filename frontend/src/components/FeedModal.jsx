@@ -2,14 +2,7 @@ import { useState, useEffect } from 'react';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Utensils, X, Heart, Sparkles, Check, ShoppingBag } from 'lucide-react';
-
-const getFoodEmoji = (name = '') => {
-    if (name.includes('Elma')) return '🍎';
-    if (name.includes('Balık')) return '🐟';
-    if (name.includes('Havuç')) return '🥕';
-    if (name.includes('Kek')) return '🍰';
-    return '🍖';
-};
+import { getItemEmoji } from '../utils/itemIcons';
 
 export default function FeedModal({ isOpen, onClose, onOpenShop }) {
     const { user, updateUserState } = useAuth();
@@ -33,17 +26,23 @@ export default function FeedModal({ isOpen, onClose, onOpenShop }) {
 
             // Yalnızca 'food' türündeki eşyaları çantada listele
             const foodOnly = dataList.filter(
-                (inv) => (inv.item?.type || inv.type) === 'food'
+                (inv) => {
+                    const itemType = (inv.item?.type || inv.type || 'food').toLowerCase();
+                    return itemType === 'food';
+                }
             );
 
-            const formattedList = foodOnly.map((inv) => ({
-                id: inv.id,
-                itemId: inv.itemId,
-                name: inv.item?.name || 'Yiyecek',
-                icon: inv.item?.icon || getFoodEmoji(inv.item?.name),
-                effectValue: inv.item?.effectValue || 20,
-                quantity: inv.quantity || 1
-            }));
+            const formattedList = foodOnly.map((inv) => {
+                const itemData = inv.item || {};
+                return {
+                    id: inv.id,
+                    itemId: inv.itemId,
+                    name: itemData.name || 'Yiyecek',
+                    icon: getItemEmoji(itemData),
+                    effectValue: itemData.effectValue || 20,
+                    quantity: inv.quantity || 1
+                };
+            });
 
             setInventory(formattedList);
         } catch (err) {
@@ -117,13 +116,12 @@ export default function FeedModal({ isOpen, onClose, onOpenShop }) {
 
                 {message && (
                     <div
-                        className={`p-3.5 rounded-xl text-xs font-semibold mb-5 flex items-center gap-2.5 animate-fadeIn shrink-0 ${
-                            message.type === 'success'
+                        className={`p-3.5 rounded-xl text-xs font-semibold mb-5 flex items-center gap-2.5 animate-fadeIn shrink-0 ${message.type === 'success'
                                 ? 'bg-emerald-950/70 text-emerald-300'
                                 : message.type === 'info'
-                                ? 'bg-blue-950/70 text-blue-300'
-                                : 'bg-red-950/70 text-red-300'
-                        }`}
+                                    ? 'bg-blue-950/70 text-blue-300'
+                                    : 'bg-red-950/70 text-red-300'
+                            }`}
                     >
                         {message.type === 'success' ? (
                             <Check size={16} className="shrink-0" />

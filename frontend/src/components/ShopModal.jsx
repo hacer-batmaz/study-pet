@@ -2,17 +2,7 @@ import { useState, useEffect } from 'react';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { ShoppingBag, X, Coins, Sparkles, Check } from 'lucide-react';
-
-const getItemEmoji = (item) => {
-    if (item.icon) return item.icon;
-    if (item.type === 'accessory') return '🎩';
-    if (item.type === 'decor') return '🪴';
-    if (item.name.includes('Elma')) return '🍎';
-    if (item.name.includes('Balık')) return '🐟';
-    if (item.name.includes('Havuç')) return '🥕';
-    if (item.name.includes('Kek')) return '🍰';
-    return '🍖';
-};
+import { getItemEmoji, getItemDisplayName } from '../utils/itemIcons';
 
 export default function ShopModal({ isOpen, onClose }) {
     const { user, updateUserState } = useAuth();
@@ -52,15 +42,15 @@ export default function ShopModal({ isOpen, onClose }) {
         try {
             const res = await api.post('/shop/buy', { itemId: item.id });
 
-            // Backend'in döndürdüğü alan adı: remainingCoins
             const remainingCoins = res.data?.remainingCoins;
             if (typeof remainingCoins === 'number') {
                 updateUserState({ coins: remainingCoins });
             }
 
+            const displayName = getItemDisplayName(item);
             setMessage({
                 type: 'success',
-                text: `${item.name} çantana eklendi!`
+                text: `${displayName} çantana eklendi!`
             });
         } catch (err) {
             setMessage({
@@ -129,6 +119,10 @@ export default function ShopModal({ isOpen, onClose }) {
                         items.map((item) => {
                             const canAfford = (user?.coins || 0) >= item.price;
                             const isBuying = buyingId === item.id;
+                            const itemType = (item.type || 'food').toLowerCase();
+
+                            const displayName = getItemDisplayName(item);
+                            const displayEmoji = getItemEmoji(item);
 
                             return (
                                 <div
@@ -137,24 +131,28 @@ export default function ShopModal({ isOpen, onClose }) {
                                 >
                                     <div className="flex items-center gap-4 min-w-0">
                                         <span className="text-3xl select-none bg-retro-card p-2.5 rounded-2xl border border-purple-900/40 shrink-0">
-                                            {getItemEmoji(item)}
+                                            {displayEmoji}
                                         </span>
                                         <div className="flex flex-col gap-1 min-w-0">
                                             <div className="flex items-center gap-2">
-                                                <h4 className="text-sm font-bold text-white truncate">{item.name}</h4>
-                                                <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-md border ${item.type === 'food'
-                                                        ? 'bg-orange-950/60 border-orange-700/40 text-orange-300'
-                                                        : item.type === 'accessory'
-                                                            ? 'bg-purple-950/60 border-purple-700/40 text-purple-300'
-                                                            : 'bg-emerald-950/60 border-emerald-700/40 text-emerald-300'
-                                                    }`}>
-                                                    {item.type === 'food' ? 'Yiyecek' : item.type === 'accessory' ? 'Aksesuar' : 'Dekor'}
+                                                <h4 className="text-sm font-bold text-white truncate">
+                                                    {displayName}
+                                                </h4>
+                                                <span
+                                                    className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-md border ${itemType === 'food'
+                                                            ? 'bg-orange-950/60 border-orange-700/40 text-orange-300'
+                                                            : itemType === 'accessory'
+                                                                ? 'bg-purple-950/60 border-purple-700/40 text-purple-300'
+                                                                : 'bg-emerald-950/60 border-emerald-700/40 text-emerald-300'
+                                                        }`}
+                                                >
+                                                    {itemType === 'food' ? 'Yiyecek' : itemType === 'accessory' ? 'Aksesuar' : 'Dekor'}
                                                 </span>
                                             </div>
                                             <p className="text-xs text-gray-400 truncate">
-                                                {item.type === 'food'
+                                                {itemType === 'food'
                                                     ? `+${item.effectValue} Açlık Doldurur`
-                                                    : item.type === 'accessory'
+                                                    : itemType === 'accessory'
                                                         ? 'Evcil hayvan aksesuarı'
                                                         : 'Çalışma odası dekorasyonu'}
                                             </p>

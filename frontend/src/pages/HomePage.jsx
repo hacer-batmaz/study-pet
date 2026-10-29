@@ -73,7 +73,9 @@ export default function HomePage() {
 
               {/* Sanal Hayvan Alanı */}
               <div className="bg-retro-dark/90 border border-purple-900/40 rounded-2xl p-6 text-center mb-5 flex flex-col items-center">
-                <div className="text-6xl mb-3 animate-bounce select-none">🐱</div>
+                <div className="text-6xl mb-3 select-none">
+                  <img src="/assets/pets/normal_kedi.gif" alt="Normal Kedi" className="w-full h-full object-contain" />
+                </div>
                 <h4 className="text-base font-extrabold text-white">Mırnav</h4>
                 <span className="text-[11px] text-retro-purple font-bold">Seviye 3 Sanal Kedi</span>
 
@@ -100,12 +102,6 @@ export default function HomePage() {
                   23:45
                 </span>
                 <div className="flex justify-center gap-2 mt-3">
-                  <span className="text-[11px] px-2.5 py-1 rounded-lg bg-emerald-950/60 border border-emerald-800/40 text-emerald-300 font-bold">
-                    +25 Coin
-                  </span>
-                  <span className="text-[11px] px-2.5 py-1 rounded-lg bg-purple-950/60 border border-purple-800/40 text-purple-300 font-bold">
-                    +50 XP
-                  </span>
                 </div>
               </div>
             </div>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../api/client';
+import { getItemEmoji, getItemDisplayName } from '../utils/itemIcons';
 import {
     ShieldAlert,
     Users,
@@ -31,14 +32,13 @@ export default function AdminPage() {
 
     // 3. Mağaza Ürünleri State
     const [shopItems, setShopItems] = useState([]);
-    const [shopSort, setShopSort] = useState('active_first'); // 'all' | 'active_first' | 'passive_first' | 'price_asc' | 'price_desc
+    const [shopSort, setShopSort] = useState('active_first');
     const [isAddProductOpen, setIsAddProductOpen] = useState(false);
     const [newProduct, setNewProduct] = useState({
         name: '',
         type: 'food',
         price: 20,
-        effectValue: 25,
-        spriteUrl: '/assets/items/apple.png'
+        effectValue: 25
     });
 
     // 4. Denetim Günlüğü State
@@ -55,7 +55,6 @@ export default function AdminPage() {
         petType: 'cat'
     });
 
-    // Kullanıcı Askıya Alma / Aktifleştirme Onay Modalı State'i
     // Kullanıcı Durum ve Rol Değişikliği Onay Modalı State'i
     const [confirmModalData, setConfirmModalData] = useState({
         isOpen: false,
@@ -146,7 +145,6 @@ export default function AdminPage() {
         }
     };
 
-    // Modal'ı açan tetikleyici
     const handleOpenStatusModal = (user) => {
         setConfirmModalData({
             isOpen: true,
@@ -155,26 +153,6 @@ export default function AdminPage() {
         });
     };
 
-    // Kullanıcı Askıya Alma / Aktifleştirme
-    const handleConfirmUserStatus = async () => {
-        const { user, actionType } = confirmModalData;
-        if (!user) return;
-
-        try {
-            await api.put(`/admin/users/${user.id}/status`, {
-                isActive: actionType === 'activate'
-            });
-
-            // Modalı kapat ve listeyi güncelle
-            setConfirmModalData({ isOpen: false, user: null, actionType: 'suspend' });
-            fetchUsers();
-            fetchStats();
-        } catch (err) {
-            alert(err.response?.data?.error || 'İşlem gerçekleştirilemedi.');
-        }
-    };
-
-    // Rol select'i değiştiğinde modalı aç
     const handleOpenRoleModal = (user, selectedRole) => {
         if (user.role === selectedRole) return;
 
@@ -186,7 +164,6 @@ export default function AdminPage() {
         });
     };
 
-    // Kullanıcı Rol Değiştirme
     const handleConfirmAction = async () => {
         const { user, actionType, newRole } = confirmModalData;
         if (!user) return;
@@ -205,24 +182,32 @@ export default function AdminPage() {
             fetchStats();
         } catch (err) {
             alert(err.response?.data?.error || 'İşlem gerçekleştirilemedi.');
-            // Hata durumunda da modalı kapatıp listeyi tazeleyelim ki select eski değerine dönsün
             setConfirmModalData({ isOpen: false, user: null, actionType: 'suspend', newRole: null });
             fetchUsers();
         }
     };
 
-    // Yeni Mağaza Ürünü Ekleme
+    // Yeni Mağaza Ürünü Ekleme (Dinamik Emoji Tespitiyle)
     const handleCreateProduct = async (e) => {
         e.preventDefault();
         try {
-            await api.post('/admin/shop', newProduct);
+            // İsime ve türe göre otomatik emoji belirle
+            const calculatedEmoji = getItemEmoji({ name: newProduct.name, type: newProduct.type });
+
+            await api.post('/admin/shop', {
+                name: newProduct.name,
+                type: newProduct.type,
+                price: Number(newProduct.price),
+                effectValue: Number(newProduct.effectValue),
+                spriteUrl: calculatedEmoji
+            });
+
             setIsAddProductOpen(false);
             setNewProduct({
                 name: '',
                 type: 'food',
                 price: 20,
-                effectValue: 25,
-                spriteUrl: '/assets/items/apple.png'
+                effectValue: 25
             });
             fetchShopItems();
         } catch (err) {
@@ -230,7 +215,6 @@ export default function AdminPage() {
         }
     };
 
-    // Ürün Aktif/Pasif Yapma (Soft-delete)
     const handleToggleShopItem = async (itemId) => {
         try {
             await api.put(`/admin/shop/${itemId}/toggle`);
@@ -240,14 +224,11 @@ export default function AdminPage() {
         }
     };
 
-    // Mağaza ürünlerini seçilen kritere göre sırala / filtrele
     const sortedShopItems = [...shopItems].sort((a, b) => {
         if (shopSort === 'active_first') {
-            // Aktifler önce (true -> -1, false -> 1)
             return (b.isActive === a.isActive) ? a.id - b.id : b.isActive ? 1 : -1;
         }
         if (shopSort === 'passive_first') {
-            // Pasifler önce
             return (b.isActive === a.isActive) ? a.id - b.id : a.isActive ? 1 : -1;
         }
         if (shopSort === 'price_asc') {
@@ -309,7 +290,6 @@ export default function AdminPage() {
             {/* ================= 1. SEKME: GENEL BAKIŞ (OVERVIEW) ================= */}
             {activeTab === 'overview' && (
                 <div className="space-y-6">
-                    {/* Metrik Kartları */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         <div className="bg-retro-card border border-purple-900/40 p-5 rounded-2xl">
                             <div className="flex justify-between items-center text-gray-400 mb-2 text-xs font-bold">
@@ -364,7 +344,6 @@ export default function AdminPage() {
                         </div>
                     </div>
 
-                    {/* En Çok Çalışılan Kategoriler */}
                     <div className="bg-retro-card border border-purple-900/40 p-6 rounded-3xl">
                         <h3 className="text-base font-bold text-white mb-4 flex items-center gap-2">
                             <BarChart3 size={18} className="text-retro-accent" />
@@ -391,7 +370,6 @@ export default function AdminPage() {
             {/* ================= 2. SEKME: KULLANICI YÖNETİMİ ================= */}
             {activeTab === 'users' && (
                 <div className="space-y-4">
-                    {/* Filtre, Arama ve Kullanıcı Ekleme Barı */}
                     <div className="bg-retro-card border border-purple-900/40 p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-3">
                         <div className="relative flex-1 w-full">
                             <Search size={16} className="absolute left-3.5 top-3.5 text-gray-400" />
@@ -442,7 +420,6 @@ export default function AdminPage() {
                                 <RefreshCw size={16} />
                             </button>
 
-                            {/* YENİ KULLANICI EKLE BUTONU */}
                             <button
                                 onClick={() => setIsAddUserOpen(true)}
                                 className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-black shadow-md transition-colors whitespace-nowrap"
@@ -453,9 +430,7 @@ export default function AdminPage() {
                         </div>
                     </div>
 
-                    {/* Kullanıcı Listesi Tablosu (Mevcut Tablon Kalacak) */}
                     <div className="bg-retro-card border border-purple-900/40 rounded-3xl overflow-hidden shadow-xl">
-                        {/* Mevcut <table> kodların burada aynen devam ediyor... */}
                         <div className="overflow-x-auto">
                             <table className="w-full text-left text-xs text-gray-300">
                                 <thead className="bg-retro-dark text-gray-400 uppercase text-[10px] tracking-wider border-b border-purple-900/40">
@@ -659,7 +634,6 @@ export default function AdminPage() {
                         </div>
 
                         <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
-                            {/* Sıralama Dropdown'ı */}
                             <select
                                 value={shopSort}
                                 onChange={(e) => setShopSort(e.target.value)}
@@ -681,53 +655,76 @@ export default function AdminPage() {
                         </div>
                     </div>
 
-                    {/* Ürün Listesi Grid (sortedShopItems üzerinden dönüyoruz) */}
+                    {/* Ürün Listesi Grid */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {sortedShopItems.map((item) => (
-                            <div
-                                key={item.id}
-                                className={`p-5 rounded-2xl border transition-all ${item.isActive
-                                    ? 'bg-retro-card border-purple-900/40'
-                                    : 'bg-retro-dark/40 border-gray-800 opacity-60'
-                                    }`}
-                            >
-                                <div className="flex justify-between items-start mb-3">
-                                    <div>
-                                        <span className="text-xs font-bold text-white">{item.name}</span>
-                                        <span className="block text-[10px] text-gray-400 uppercase tracking-wider font-semibold">
-                                            {item.type}
-                                        </span>
-                                    </div>
-                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${item.isActive ? 'bg-emerald-950 text-emerald-400' : 'bg-gray-800 text-gray-400'
-                                        }`}>
-                                        {item.isActive ? 'Aktif' : 'Pasif'}
-                                    </span>
-                                </div>
+                        {sortedShopItems.map((item) => {
+                            const displayEmoji = getItemEmoji(item);
+                            const displayName = getItemDisplayName(item);
 
-                                <div className="flex items-center justify-between text-xs my-4 pt-3 border-t border-purple-900/20 font-mono">
-                                    <span className="text-amber-400 font-bold">🪙 {item.price} Jeton</span>
-                                    <span className="text-emerald-400 font-bold">+{item.effectValue} Açlık</span>
-                                </div>
-
-                                <button
-                                    onClick={() => handleToggleShopItem(item.id)}
-                                    className={`w-full py-2 rounded-xl text-xs font-bold border transition-colors ${item.isActive
-                                        ? 'bg-rose-950/30 text-rose-300 border-rose-800/40 hover:bg-rose-900/50'
-                                        : 'bg-emerald-950/30 text-emerald-300 border-emerald-800/40 hover:bg-emerald-900/50'
+                            return (
+                                <div
+                                    key={item.id}
+                                    className={`p-5 rounded-2xl border transition-all ${item.isActive
+                                        ? 'bg-retro-card border-purple-900/40'
+                                        : 'bg-retro-dark/40 border-gray-800 opacity-60'
                                         }`}
                                 >
-                                    {item.isActive ? 'Satıştan Kaldır (Pasif)' : 'Yeniden Satışa Sun'}
-                                </button>
-                            </div>
-                        ))}
+                                    <div className="flex items-start gap-3.5 mb-3">
+                                        <span className="text-3xl p-2 rounded-xl bg-retro-dark border border-purple-900/40 shrink-0">
+                                            {displayEmoji}
+                                        </span>
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex justify-between items-start">
+                                                <h4 className="text-sm font-bold text-white truncate">{displayName}</h4>
+                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${item.isActive ? 'bg-emerald-950 text-emerald-400' : 'bg-gray-800 text-gray-400'
+                                                    }`}>
+                                                    {item.isActive ? 'Aktif' : 'Pasif'}
+                                                </span>
+                                            </div>
+                                            <span className="block text-[10px] text-gray-400 uppercase tracking-wider font-semibold mt-0.5">
+                                                {item.type}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center justify-between text-xs my-4 pt-3 border-t border-purple-900/20 font-mono">
+                                        <span className="text-amber-400 font-bold">🪙 {item.price} Jeton</span>
+                                        <span className="text-emerald-400 font-bold">+{item.effectValue} Açlık</span>
+                                    </div>
+
+                                    <button
+                                        onClick={() => handleToggleShopItem(item.id)}
+                                        className={`w-full py-2 rounded-xl text-xs font-bold border transition-colors ${item.isActive
+                                            ? 'bg-rose-950/30 text-rose-300 border-rose-800/40 hover:bg-rose-900/50'
+                                            : 'bg-emerald-950/30 text-emerald-300 border-emerald-800/40 hover:bg-emerald-900/50'
+                                            }`}
+                                    >
+                                        {item.isActive ? 'Satıştan Kaldır (Pasif)' : 'Yeniden Satışa Sun'}
+                                    </button>
+                                </div>
+                            );
+                        })}
                     </div>
 
-                    {/* Yeni Ürün Ekleme Modalı */}
+                    {/* Yeni Ürün Ekleme Modalı (Canlı Emoji Önizlemeli) */}
                     {isAddProductOpen && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
                             <div className="bg-retro-card border-2 border-amber-500/50 p-6 rounded-3xl max-w-md w-full shadow-2xl relative">
                                 <h3 className="text-lg font-bold text-white mb-4">Yeni Mağaza Ürünü Ekle</h3>
                                 <form onSubmit={handleCreateProduct} className="space-y-3">
+                                    {/* Canlı Emoji Önizleme Kartı */}
+                                    <div className="flex items-center gap-3.5 p-3 bg-retro-dark/80 rounded-2xl border border-purple-900/40">
+                                        <div className="w-12 h-12 rounded-xl bg-slate-950 flex items-center justify-center text-3xl border border-purple-800/40 shrink-0">
+                                            {getItemEmoji({ name: newProduct.name, type: newProduct.type })}
+                                        </div>
+                                        <div>
+                                            <p className="text-[11px] text-gray-400">Otomatik Algılanan Simge</p>
+                                            <p className="text-xs text-amber-400 font-bold">
+                                                {newProduct.name.trim() ? `"${newProduct.name}" simgesi hazır` : 'Ürün adı yazınca belirecek'}
+                                            </p>
+                                        </div>
+                                    </div>
+
                                     <div>
                                         <label className="block text-xs font-bold text-gray-300 mb-1">Ürün Adı</label>
                                         <input
@@ -735,8 +732,8 @@ export default function AdminPage() {
                                             required
                                             value={newProduct.name}
                                             onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
-                                            placeholder="Örn: Çilekli Pasta"
-                                            className="w-full px-3 py-2 bg-retro-dark border border-purple-900/50 rounded-xl text-xs text-white focus:outline-none"
+                                            placeholder="Örn: Dilim Pizza, Taze Süt, Kemik..."
+                                            className="w-full px-3 py-2 bg-retro-dark border border-purple-900/50 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500"
                                         />
                                     </div>
 
@@ -762,7 +759,7 @@ export default function AdminPage() {
                                                 required
                                                 value={newProduct.price}
                                                 onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
-                                                className="w-full px-3 py-2 bg-retro-dark border border-purple-900/50 rounded-xl text-xs text-white focus:outline-none"
+                                                className="w-full px-3 py-2 bg-retro-dark border border-purple-900/50 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-amber-500"
                                             />
                                         </div>
                                     </div>
@@ -776,7 +773,7 @@ export default function AdminPage() {
                                             required
                                             value={newProduct.effectValue}
                                             onChange={(e) => setNewProduct({ ...newProduct, effectValue: e.target.value })}
-                                            className="w-full px-3 py-2 bg-retro-dark border border-purple-900/50 rounded-xl text-xs text-white focus:outline-none"
+                                            className="w-full px-3 py-2 bg-retro-dark border border-purple-900/50 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-amber-500"
                                         />
                                     </div>
 
@@ -847,12 +844,11 @@ export default function AdminPage() {
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
                     <div className="bg-retro-card border-2 border-purple-500/50 p-6 md:p-8 rounded-3xl max-w-md w-full shadow-2xl relative flex flex-col items-center text-center">
 
-                        {/* İkon Rozeti */}
                         <div className={`p-4 rounded-2xl mb-4 border ${confirmModalData.actionType === 'suspend'
-                                ? 'bg-rose-950/70 border-rose-800/60 text-rose-400'
-                                : confirmModalData.actionType === 'role_change'
-                                    ? 'bg-amber-950/70 border-amber-800/60 text-amber-400'
-                                    : 'bg-emerald-950/70 border-emerald-800/60 text-emerald-400'
+                            ? 'bg-rose-950/70 border-rose-800/60 text-rose-400'
+                            : confirmModalData.actionType === 'role_change'
+                                ? 'bg-amber-950/70 border-amber-800/60 text-amber-400'
+                                : 'bg-emerald-950/70 border-emerald-800/60 text-emerald-400'
                             }`}>
                             {confirmModalData.actionType === 'suspend' ? (
                                 <AlertTriangle size={36} className="animate-pulse" />
@@ -863,7 +859,6 @@ export default function AdminPage() {
                             )}
                         </div>
 
-                        {/* Başlık */}
                         <h3 className="text-xl font-black text-white tracking-wide mb-2">
                             {confirmModalData.actionType === 'suspend'
                                 ? 'Hesabı Askıya Al'
@@ -872,7 +867,6 @@ export default function AdminPage() {
                                     : 'Hesabı Yeniden Aktifleştir'}
                         </h3>
 
-                        {/* Açıklama Metni */}
                         <p className="text-xs text-gray-300 leading-relaxed mb-4">
                             <span className="font-bold text-amber-400 font-mono">
                                 @{confirmModalData.user.username}
@@ -893,7 +887,6 @@ export default function AdminPage() {
                             )}
                         </p>
 
-                        {/* Rol Değişimi veya Askıya Alma Uyarı Kutusu */}
                         {confirmModalData.actionType === 'role_change' && confirmModalData.newRole === 'ADMIN' && (
                             <div className="w-full bg-retro-dark/80 border border-amber-500/30 p-3 rounded-xl mb-6 text-left space-y-1">
                                 <div className="flex items-center gap-1.5 text-[11px] font-bold text-amber-400">
@@ -920,13 +913,12 @@ export default function AdminPage() {
                             </div>
                         )}
 
-                        {/* Butonlar */}
                         <div className="flex items-center gap-3 w-full">
                             <button
                                 type="button"
                                 onClick={() => {
                                     setConfirmModalData({ isOpen: false, user: null, actionType: 'suspend', newRole: null });
-                                    fetchUsers(); // İptal edilirse select'i eski haline çekmek için
+                                    fetchUsers();
                                 }}
                                 className="flex-1 py-3 bg-retro-dark hover:bg-slate-900 text-gray-300 rounded-xl text-xs font-bold border border-purple-900/40 transition-colors"
                             >
@@ -937,10 +929,10 @@ export default function AdminPage() {
                                 type="button"
                                 onClick={handleConfirmAction}
                                 className={`flex-1 py-3 rounded-xl text-xs font-black shadow-lg transition-all ${confirmModalData.actionType === 'suspend'
-                                        ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-950/40'
-                                        : confirmModalData.actionType === 'role_change'
-                                            ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-950/40'
-                                            : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-950/40'
+                                    ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-950/40'
+                                    : confirmModalData.actionType === 'role_change'
+                                        ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-950/40'
+                                        : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-950/40'
                                     }`}
                             >
                                 {confirmModalData.actionType === 'suspend'
