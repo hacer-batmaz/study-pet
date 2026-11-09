@@ -224,18 +224,19 @@ export default function AdminPage() {
         }
     };
 
+    // Fiyata (Artan / Azalan) ve Duruma Göre Sıralama
     const sortedShopItems = [...shopItems].sort((a, b) => {
-        if (shopSort === 'active_first') {
-            return (b.isActive === a.isActive) ? a.id - b.id : b.isActive ? 1 : -1;
-        }
-        if (shopSort === 'passive_first') {
-            return (b.isActive === a.isActive) ? a.id - b.id : a.isActive ? 1 : -1;
-        }
         if (shopSort === 'price_asc') {
-            return a.price - b.price;
+            return a.price - b.price; // Artan fiyat (Düşükten yükseğe)
         }
         if (shopSort === 'price_desc') {
-            return b.price - a.price;
+            return b.price - a.price; // Azalan fiyat (Yüksekten düşüğe)
+        }
+        if (shopSort === 'active_first') {
+            return (b.isActive === a.isActive) ? a.id - b.id : b.isActive ? -1 : 1;
+        }
+        if (shopSort === 'passive_first') {
+            return (b.isActive === a.isActive) ? a.id - b.id : a.isActive ? -1 : 1;
         }
         return a.id - b.id;
     });
@@ -634,13 +635,14 @@ export default function AdminPage() {
                         </div>
 
                         <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+                            {/* Sıralama Seçici */}
                             <select
                                 value={shopSort}
                                 onChange={(e) => setShopSort(e.target.value)}
-                                className="bg-retro-dark border border-purple-900/40 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                                className="bg-retro-dark border border-purple-900/40 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 cursor-pointer"
                             >
-                                <option value="active_first">Önce Aktifler</option>
-                                <option value="passive_first">Önce Pasifler</option>
+                                <option value="active_first">Durum: Önce Aktifler</option>
+                                <option value="passive_first">Durum: Önce Pasifler</option>
                                 <option value="price_asc">Fiyat: Düşükten Yükseğe</option>
                                 <option value="price_desc">Fiyat: Yüksekten Düşüğe</option>
                             </select>

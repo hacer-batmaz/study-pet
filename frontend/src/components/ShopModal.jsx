@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
-import { ShoppingBag, X, Coins, Sparkles, Check } from 'lucide-react';
+import { ShoppingBag, X, Coins, Sparkles, Check, ArrowUpDown } from 'lucide-react';
 import { getItemEmoji, getItemDisplayName } from '../utils/itemIcons';
 
 export default function ShopModal({ isOpen, onClose }) {
@@ -10,6 +10,7 @@ export default function ShopModal({ isOpen, onClose }) {
     const [loading, setLoading] = useState(false);
     const [buyingId, setBuyingId] = useState(null);
     const [message, setMessage] = useState(null);
+    const [shopSort, setShopSort] = useState('default'); // 'default' | 'price_asc' | 'price_desc'
 
     useEffect(() => {
         if (isOpen) {
@@ -62,6 +63,17 @@ export default function ShopModal({ isOpen, onClose }) {
         }
     };
 
+    // Fiyata göre sıralama mantığı
+    const sortedItems = [...items].sort((a, b) => {
+        if (shopSort === 'price_asc') {
+            return a.price - b.price; // Artan fiyat (Düşükten Yükseğe)
+        }
+        if (shopSort === 'price_desc') {
+            return b.price - a.price; // Azalan fiyat (Yüksekten Düşüğe)
+        }
+        return (a.id || 0) - (b.id || 0); // Varsayılan ID sırası
+    });
+
     if (!isOpen) return null;
 
     return (
@@ -75,7 +87,8 @@ export default function ShopModal({ isOpen, onClose }) {
                     <X size={20} />
                 </button>
 
-                <div className="flex items-center justify-between border-b border-purple-900/40 pb-5 mb-6 pr-10">
+                {/* Başlık ve Bakiye Bölümü */}
+                <div className="flex items-center justify-between border-b border-purple-900/40 pb-5 mb-4 pr-10">
                     <div className="flex items-center gap-3.5">
                         <div className="p-3 bg-yellow-950/60 text-yellow-400 rounded-2xl flex items-center justify-center shrink-0">
                             <ShoppingBag size={24} />
@@ -94,9 +107,27 @@ export default function ShopModal({ isOpen, onClose }) {
                     </div>
                 </div>
 
+                {/* Fiyat Sıralama Seçici Barı */}
+                <div className="flex items-center justify-between mb-4 px-1">
+                    <span className="text-[11px] text-gray-400 font-medium flex items-center gap-1.5">
+                        <ArrowUpDown size={13} className="text-yellow-500" />
+                        <span>Sıralama:</span>
+                    </span>
+
+                    <select
+                        value={shopSort}
+                        onChange={(e) => setShopSort(e.target.value)}
+                        className="bg-retro-dark border border-purple-900/50 rounded-xl px-2.5 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-yellow-500 cursor-pointer"
+                    >
+                        <option value="default">Varsayılan Sıra</option>
+                        <option value="price_asc">Fiyat: Düşükten Yükseğe</option>
+                        <option value="price_desc">Fiyat: Yüksekten Düşüğe</option>
+                    </select>
+                </div>
+
                 {message && (
                     <div
-                        className={`p-3.5 rounded-xl text-xs font-semibold mb-5 flex items-center gap-2.5 animate-fadeIn shrink-0 ${message.type === 'success'
+                        className={`p-3.5 rounded-xl text-xs font-semibold mb-4 flex items-center gap-2.5 animate-fadeIn shrink-0 ${message.type === 'success'
                                 ? 'bg-emerald-950/70 text-emerald-300'
                                 : 'bg-red-950/70 text-red-300'
                             }`}
@@ -110,13 +141,14 @@ export default function ShopModal({ isOpen, onClose }) {
                     </div>
                 )}
 
+                {/* Ürün Listesi Grid/Scroll Alanı */}
                 <div className="overflow-y-auto space-y-3.5 pr-2 flex-1">
                     {loading ? (
                         <div className="text-center py-10 text-gray-400 text-sm">Ürünler yükleniyor...</div>
-                    ) : items.length === 0 ? (
+                    ) : sortedItems.length === 0 ? (
                         <div className="text-center py-10 text-gray-400 text-sm">Mağazada henüz ürün bulunmuyor.</div>
                     ) : (
-                        items.map((item) => {
+                        sortedItems.map((item) => {
                             const canAfford = (user?.coins || 0) >= item.price;
                             const isBuying = buyingId === item.id;
                             const itemType = (item.type || 'food').toLowerCase();
